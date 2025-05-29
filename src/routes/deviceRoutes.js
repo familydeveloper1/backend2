@@ -25,6 +25,16 @@ const { protect } = require('../middleware/auth');
 // Tüm route'ları koruma altına al
 router.use(protect);
 
+// Özel route handler - ID olarak yorumlanmasını önlemek için
+router.use('/:id', (req, res, next) => {
+  // Eğer id, özel bir endpoint ise, bir sonraki route handler'a geç
+  if (['allowed-numbers-list', 'allowed-numbers-add', 'permissions-list', 'permissions-request'].includes(req.params.id)) {
+    return next('route');
+  }
+  // Değilse, normal akışa devam et
+  next();
+});
+
 // Temel cihaz işlemleri
 router
   .route('/')
