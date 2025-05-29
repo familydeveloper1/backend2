@@ -9,6 +9,7 @@ const errorHandler = require('./middleware/error');
 const locationRoutes = require('./routes/locationRoutes');
 const userRoutes = require('./routes/userRoutes');
 const deviceRoutes = require('./routes/deviceRoutes');
+const permissionRoutes = require('./routes/permissionRoutes');
 
 // Load environment variables
 dotenv.config();
@@ -40,6 +41,7 @@ app.use((req, res, next) => {
 app.use('/api/locations', locationRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/devices', deviceRoutes);
+app.use('/api/permissions', permissionRoutes);
 
 // Ana sayfa route'u
 app.get('/', (req, res) => {
