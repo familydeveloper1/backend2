@@ -38,20 +38,14 @@ router
   .delete(deleteDevice);
 
 // İzin verilen numaralar
-router
-  .route('/allowed-numbers')
-  .get(getAllowedNumbers)
-  .post(addAllowedNumber);
-
-router.delete('/allowed-numbers/:id', removeAllowedNumber);
+router.get('/allowed-numbers-list', getAllowedNumbers);
+router.post('/allowed-numbers-add', addAllowedNumber);
+router.delete('/allowed-numbers-remove/:id', removeAllowedNumber);
 
 // İzin istekleri
-router
-  .route('/permissions')
-  .get(getPermissionRequests)
-  .post(requestDevicePermission);
-
-router.put('/permissions/:id', respondToPermissionRequest);
+router.get('/permissions-list', getPermissionRequests);
+router.post('/permissions-request', requestDevicePermission);
+router.put('/permissions-respond/:id', respondToPermissionRequest);
 
 // İzin durumu kontrolü
 router.get('/check-permission/:deviceId', checkTrackingPermission);
