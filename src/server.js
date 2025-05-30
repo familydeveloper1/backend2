@@ -465,30 +465,60 @@ app.get('/api/permissions/check/phone/:phoneNumber', auth, async (req, res, next
 // Telefon numarasına göre konum kaydetme
 app.post('/api/locations/phone', auth, async (req, res) => {
   try {
-    const { phoneNumber, latitude, longitude, altitude, speed, accuracy } = req.body;
+    console.log('Konum kaydetme isteği alındı:', req.body);
+    const { phoneNumber, latitude, longitude, altitude, speed, accuracy, userId, heading, timestamp } = req.body;
+
+    if (!phoneNumber || !latitude || !longitude) {
+      console.error('Eksik konum bilgileri:', { phoneNumber, latitude, longitude });
+      return res.status(400).json({
+        success: false,
+        error: 'Eksik konum bilgileri'
+      });
+    }
 
     // Telefon numarasını kontrol et
     const user = await User.findOne({ phoneNumber });
 
     if (!user) {
+      console.error(`${phoneNumber} numaralı kullanıcı bulunamadı`);
       return res.status(404).json({
         success: false,
         error: `${phoneNumber} numaralı kullanıcı bulunamadı`
       });
     }
 
+    console.log('Kullanıcı bulundu:', user._id);
+
     // Konum oluştur
-    const location = await Location.create({
+    const locationData = {
       phoneNumber,
       user: user._id,
       coordinates: {
         type: 'Point',
         coordinates: [longitude, latitude]
       },
-      altitude,
-      speed,
-      accuracy
-    });
+      timestamp: timestamp || Date.now()
+    };
+
+    // Opsiyonel alanları ekle
+    if (altitude !== undefined) locationData.altitude = altitude;
+    if (speed !== undefined) locationData.speed = speed;
+    if (accuracy !== undefined) locationData.accuracy = accuracy;
+    if (heading !== undefined) locationData.heading = heading;
+
+    console.log('Kaydedilecek konum verileri:', locationData);
+
+    // Konum oluştur
+    const location = await Location.create(locationData);
+    console.log('Konum başarıyla kaydedildi:', location._id);
+
+    // Kullanıcının son konum bilgisini güncelle
+    user.lastKnownLocation = {
+      type: 'Point',
+      coordinates: [longitude, latitude]
+    };
+    await user.save();
+    console.log('Kullanıcının son konum bilgisi güncellendi');
 
     res.status(201).json({
       success: true,
@@ -498,7 +528,7 @@ app.post('/api/locations/phone', auth, async (req, res) => {
     console.error('Konum kaydedilirken hata:', err);
     res.status(500).json({
       success: false,
-      error: 'Sunucu hatası'
+      error: 'Sunucu hatası: ' + err.message
     });
   }
 });
