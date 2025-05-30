@@ -3,7 +3,7 @@ const {
   getAllowedNumbers,
   addAllowedNumber,
   removeAllowedNumber,
-  requestDevicePermission,
+  requestPhonePermission,
   getPermissionRequests,
   respondToPermissionRequest,
   checkTrackingPermission
@@ -24,10 +24,10 @@ router.delete('/allowed-numbers/:id', removeAllowedNumber);
 
 // İzin istekleri
 router.get('/requests', getPermissionRequests);
-router.post('/request', requestDevicePermission);
+router.post('/request', requestPhonePermission);
 router.put('/request/:id', respondToPermissionRequest);
 
-// İzin durumu kontrolü
-router.get('/check/:deviceId', checkTrackingPermission);
+// İzin durumu kontrolü - telefon numarası tabanlı sistem için güncellendi
+router.get('/check/phone/:phoneNumber', checkTrackingPermission);
 
 module.exports = router;

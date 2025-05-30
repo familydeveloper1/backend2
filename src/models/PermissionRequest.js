@@ -1,9 +1,9 @@
 const mongoose = require('mongoose');
 
 const PermissionRequestSchema = new mongoose.Schema({
-  deviceId: {
+  targetPhoneNumber: {
     type: String,
-    required: [true, 'Lütfen cihaz ID giriniz'],
+    required: [true, 'Lütfen izin istenen telefon numarasını giriniz'],
     trim: true
   },
   requesterPhone: {
@@ -11,10 +11,15 @@ const PermissionRequestSchema = new mongoose.Schema({
     required: [true, 'Lütfen telefon numarası giriniz'],
     trim: true
   },
+  ownerPhoneNumber: {
+    type: String,
+    required: [true, 'Lütfen izin sahibi telefon numarasını giriniz'],
+    trim: true
+  },
   ownerUser: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
-    required: true
+    required: false // Telefon numarası tabanlı sistemde kullanıcı referansı opsiyonel olabilir
   },
   status: {
     type: String,

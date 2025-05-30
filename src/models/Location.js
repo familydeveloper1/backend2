@@ -1,11 +1,19 @@
 const mongoose = require('mongoose');
 
 const LocationSchema = new mongoose.Schema({
-  device: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Device',
-    required: true
+  // Telefon numarası tabanlı sistem için eklendi
+  phoneNumber: {
+    type: String,
+    required: false, // Geriye dönük uyumluluk için false
+    index: true // Telefon numarasına göre hızlı arama için indeks
   },
+  // Kullanıcı referansı
+  user: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: false // Geriye dönük uyumluluk için false
+  },
+  // Telefon numarası tabanlı sistemde cihaz referansına gerek yok
   coordinates: {
     type: {
       type: String,
@@ -43,17 +51,25 @@ const LocationSchema = new mongoose.Schema({
 
 // Konum verilerini kaydetmeden önce
 LocationSchema.pre('save', async function(next) {
-  // Eğer bu yeni bir konum ise, cihazın son konumunu güncelle
-  if (this.isNew) {
+  
+  // Eğer bu yeni bir konum ise ve bir telefon numarası varsa, kullanıcının son konumunu güncelle
+  if (this.isNew && this.phoneNumber) {
     try {
-      const Device = mongoose.model('Device');
-      await Device.findByIdAndUpdate(this.device, {
-        lastLocation: this._id
-      });
+      const User = mongoose.model('User');
+      const user = await User.findOne({ phoneNumber: this.phoneNumber });
+      if (user) {
+        user.lastKnownLocation = {
+          latitude: this.coordinates.coordinates[1],
+          longitude: this.coordinates.coordinates[0],
+          timestamp: this.timestamp
+        };
+        await user.save();
+      }
     } catch (err) {
-      console.error('Cihazın son konumu güncellenirken hata oluştu:', err);
+      console.error('Kullanıcının son konumu güncellenirken hata oluştu:', err);
     }
   }
+  
   next();
 });
 

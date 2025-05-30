@@ -1,11 +1,10 @@
-const Device = require('../models/Device');
 const User = require('../models/User');
 const AllowedNumber = require('../models/AllowedNumber');
 const PermissionRequest = require('../models/PermissionRequest');
 const ErrorResponse = require('../utils/errorResponse');
 
 // @desc    İzin verilen numaraları getir
-// @route   GET /api/devices/allowed-numbers
+// @route   GET /api/permissions/allowed-numbers
 // @access  Private
 exports.getAllowedNumbers = async (req, res, next) => {
   try {
@@ -22,7 +21,7 @@ exports.getAllowedNumbers = async (req, res, next) => {
 };
 
 // @desc    İzin verilen numara ekle
-// @route   POST /api/devices/allowed-numbers
+// @route   POST /api/permissions/allowed-numbers
 // @access  Private
 exports.addAllowedNumber = async (req, res, next) => {
   try {
@@ -52,7 +51,7 @@ exports.addAllowedNumber = async (req, res, next) => {
 };
 
 // @desc    İzin verilen numara sil
-// @route   DELETE /api/devices/allowed-numbers/:id
+// @route   DELETE /api/permissions/allowed-numbers/:id
 // @access  Private
 exports.removeAllowedNumber = async (req, res, next) => {
   try {
@@ -79,42 +78,36 @@ exports.removeAllowedNumber = async (req, res, next) => {
   }
 };
 
-// @desc    Cihaz izin isteği gönder
-// @route   POST /api/devices/permissions
+// @desc    Telefon numarası için izin isteği gönder
+// @route   POST /api/permissions/request
 // @access  Private
-exports.requestDevicePermission = async (req, res, next) => {
+exports.requestPhonePermission = async (req, res, next) => {
   try {
-    const { deviceId, phoneNumber } = req.body;
+    const { targetPhoneNumber, requesterPhone } = req.body;
 
-    // Cihazı bul
-    const device = await Device.findOne({ deviceId });
-
-    if (!device) {
-      return next(new ErrorResponse(`${deviceId} ID'li cihaz bulunamadı`, 404));
-    }
-
-    // Cihaz sahibini bul
-    const owner = await User.findById(device.user);
+    // Hedef telefon numarasının sahibini bul
+    const owner = await User.findOne({ phoneNumber: targetPhoneNumber });
 
     if (!owner) {
-      return next(new ErrorResponse('Cihaz sahibi bulunamadı', 404));
+      return next(new ErrorResponse(`${targetPhoneNumber} numaralı kullanıcı bulunamadı`, 404));
     }
 
     // İzin isteği zaten var mı kontrol et
     const existingRequest = await PermissionRequest.findOne({
-      deviceId,
-      requesterPhone: phoneNumber,
+      targetPhoneNumber,
+      requesterPhone,
       status: 'pending'
     });
 
     if (existingRequest) {
-      return next(new ErrorResponse('Bu cihaz için zaten bir izin isteğiniz var', 400));
+      return next(new ErrorResponse('Bu telefon numarası için zaten bir izin isteğiniz var', 400));
     }
 
     // Yeni izin isteği oluştur
     const permissionRequest = await PermissionRequest.create({
-      deviceId,
-      requesterPhone: phoneNumber,
+      targetPhoneNumber,
+      requesterPhone,
+      ownerPhoneNumber: targetPhoneNumber,
       ownerUser: owner._id
     });
 
@@ -129,11 +122,17 @@ exports.requestDevicePermission = async (req, res, next) => {
 };
 
 // @desc    İzin isteklerini getir
-// @route   GET /api/devices/permissions
+// @route   GET /api/permissions/requests
 // @access  Private
 exports.getPermissionRequests = async (req, res, next) => {
   try {
-    const permissionRequests = await PermissionRequest.find({ ownerUser: req.user.id });
+    // Telefon numarası tabanlı sistem için güncellendi
+    const permissionRequests = await PermissionRequest.find({ 
+      $or: [
+        { ownerUser: req.user.id },
+        { ownerPhoneNumber: req.user.phoneNumber }
+      ]
+    });
 
     res.status(200).json({
       success: true,
@@ -146,7 +145,7 @@ exports.getPermissionRequests = async (req, res, next) => {
 };
 
 // @desc    İzin isteğini yanıtla
-// @route   PUT /api/devices/permissions/:id
+// @route   PUT /api/permissions/request/:id
 // @access  Private
 exports.respondToPermissionRequest = async (req, res, next) => {
   try {
@@ -158,8 +157,9 @@ exports.respondToPermissionRequest = async (req, res, next) => {
       return next(new ErrorResponse(`${req.params.id} ID'li izin isteği bulunamadı`, 404));
     }
 
-    // İsteğin kullanıcıya ait olup olmadığını kontrol et
-    if (permissionRequest.ownerUser.toString() !== req.user.id) {
+    // İsteğin kullanıcıya ait olup olmadığını kontrol et - telefon numarası tabanlı sistem için güncellendi
+    if (permissionRequest.ownerPhoneNumber !== req.user.phoneNumber && 
+        (!permissionRequest.ownerUser || permissionRequest.ownerUser.toString() !== req.user.id)) {
       return next(new ErrorResponse('Bu isteği yanıtlama yetkiniz yok', 403));
     }
 
@@ -177,49 +177,47 @@ exports.respondToPermissionRequest = async (req, res, next) => {
   }
 };
 
-// @desc    Bir cihazı takip etmek için izin durumunu kontrol et
-// @route   GET /api/devices/check-permission/:deviceId
+// @desc    Bir telefon numarasını takip etmek için izin durumunu kontrol et
+// @route   GET /api/permissions/check/phone/:phoneNumber
 // @access  Private
 exports.checkTrackingPermission = async (req, res, next) => {
   try {
-    const { deviceId } = req.params;
+    const { phoneNumber } = req.params;
 
-    // Cihazı bul
-    const device = await Device.findOne({ deviceId });
+    // Hedef telefon numarasının sahibini bul
+    const targetUser = await User.findOne({ phoneNumber });
 
-    if (!device) {
-      return next(new ErrorResponse(`${deviceId} ID'li cihaz bulunamadı`, 404));
+    if (!targetUser) {
+      return next(new ErrorResponse(`${phoneNumber} numaralı kullanıcı bulunamadı`, 404));
     }
 
-    // Kullanıcı cihazın sahibi mi?
-    if (device.user.toString() === req.user.id) {
+    // Kullanıcı kendisi mi kontrol et?
+    if (req.user.phoneNumber === phoneNumber) {
       return res.status(200).json({
         success: true,
         hasPermission: true,
-        message: 'Bu cihazın sahibisiniz'
+        message: 'Bu telefon numarası size ait'
       });
     }
 
     // Kullanıcının telefon numarası izin verilen numaralar listesinde mi?
-    const user = await User.findById(req.user.id);
-    
     const allowedNumber = await AllowedNumber.findOne({
-      user: device.user,
-      phoneNumber: user.phoneNumber
+      user: targetUser._id,
+      phoneNumber: req.user.phoneNumber
     });
 
     if (allowedNumber) {
       return res.status(200).json({
         success: true,
         hasPermission: true,
-        message: 'Bu cihazı takip etme izniniz var'
+        message: 'Bu kullanıcıyı takip etme izniniz var'
       });
     }
 
     // İzin isteği kabul edilmiş mi?
     const acceptedRequest = await PermissionRequest.findOne({
-      deviceId,
-      requesterPhone: user.phoneNumber,
+      targetPhoneNumber: phoneNumber,
+      requesterPhone: req.user.phoneNumber,
       status: 'accepted'
     });
 
@@ -234,7 +232,7 @@ exports.checkTrackingPermission = async (req, res, next) => {
     return res.status(200).json({
       success: true,
       hasPermission: false,
-      message: 'Bu cihazı takip etme izniniz yok'
+      message: 'Bu kullanıcıyı takip etme izniniz yok'
     });
   } catch (err) {
     next(err);

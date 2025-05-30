@@ -79,7 +79,7 @@ exports.getMe = async (req, res, next) => {
   try {
     console.log('GetMe endpoint çağrıldı, kullanıcı ID:', req.user.id);
     
-    const user = await User.findById(req.user.id).populate('devices');
+    const user = await User.findById(req.user.id);
     
     if (!user) {
       console.log('Kullanıcı bulunamadı:', req.user.id);

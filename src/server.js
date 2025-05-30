@@ -8,7 +8,6 @@ const errorHandler = require('./middleware/error');
 // Route imports
 const locationRoutes = require('./routes/locationRoutes');
 const userRoutes = require('./routes/userRoutes');
-const deviceRoutes = require('./routes/deviceRoutes');
 const permissionRoutes = require('./routes/permissionRoutes');
 
 // Load environment variables
@@ -40,7 +39,6 @@ app.use((req, res, next) => {
 // Routes
 app.use('/api/locations', locationRoutes);
 app.use('/api/users', userRoutes);
-app.use('/api/devices', deviceRoutes);
 app.use('/api/permissions', permissionRoutes);
 
 // Ana sayfa route'u

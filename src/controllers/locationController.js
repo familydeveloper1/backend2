@@ -1,22 +1,20 @@
 const Location = require('../models/Location');
-const Device = require('../models/Device');
+const User = require('../models/User');
 const ErrorResponse = require('../utils/errorResponse');
 
-// @desc    Bir cihazın tüm konumlarını getir
-// @route   GET /api/locations/device/:deviceId
+// @desc    Bir telefon numarasının tüm konumlarını getir
+// @route   GET /api/locations/phone/:phoneNumber
 // @access  Private
-exports.getDeviceLocations = async (req, res, next) => {
+exports.getPhoneLocations = async (req, res, next) => {
   try {
-    // Önce cihazın kullanıcıya ait olup olmadığını kontrol et
-    const device = await Device.findById(req.params.deviceId);
+    const { phoneNumber } = req.params;
+    
+    // Telefon numarasının sahibini kontrol et
+    const targetUser = await User.findOne({ phoneNumber });
 
-    if (!device) {
-      return next(new ErrorResponse(`${req.params.deviceId} ID'li cihaz bulunamadı`, 404));
-    }
-
-    // Cihazın kullanıcıya ait olup olmadığını kontrol et
-    if (device.user.toString() !== req.user.id && req.user.role !== 'admin') {
-      return next(new ErrorResponse('Bu cihazın konumlarına erişim yetkiniz yok', 403));
+    // İzin kontrolü - kullanıcı kendisi mi veya admin mi?
+    if (req.user.phoneNumber !== phoneNumber && req.user.role !== 'admin') {
+      return next(new ErrorResponse('Bu telefon numarasının konumlarına erişim yetkiniz yok', 403));
     }
 
     // Sorgu parametrelerini al
@@ -41,9 +39,9 @@ exports.getDeviceLocations = async (req, res, next) => {
       };
     }
 
-    // Cihaza ait konumları getir
+    // Telefon numarasına ait konumları getir
     const locations = await Location.find({
-      device: req.params.deviceId,
+      phoneNumber,
       ...dateFilter
     })
       .sort('-timestamp')
@@ -59,30 +57,39 @@ exports.getDeviceLocations = async (req, res, next) => {
   }
 };
 
-// @desc    Bir cihazın son konumunu getir
-// @route   GET /api/locations/device/:deviceId/latest
+// @desc    Bir telefon numarasının son konumunu getir
+// @route   GET /api/locations/phone/:phoneNumber/latest
 // @access  Private
-exports.getLatestDeviceLocation = async (req, res, next) => {
+exports.getLatestPhoneLocation = async (req, res, next) => {
   try {
-    // Önce cihazın kullanıcıya ait olup olmadığını kontrol et
-    const device = await Device.findById(req.params.deviceId).populate('lastLocation');
+    const { phoneNumber } = req.params;
+    
+    // Telefon numarasının sahibini kontrol et
+    const targetUser = await User.findOne({ phoneNumber });
 
-    if (!device) {
-      return next(new ErrorResponse(`${req.params.deviceId} ID'li cihaz bulunamadı`, 404));
+    if (!targetUser) {
+      return next(new ErrorResponse(`${phoneNumber} numaralı kullanıcı bulunamadı`, 404));
     }
 
-    // Cihazın kullanıcıya ait olup olmadığını kontrol et
-    if (device.user.toString() !== req.user.id && req.user.role !== 'admin') {
-      return next(new ErrorResponse('Bu cihazın konumuna erişim yetkiniz yok', 403));
+    // İzin kontrolü - kullanıcı kendisi mi veya admin mi?
+    if (req.user.phoneNumber !== phoneNumber && req.user.role !== 'admin') {
+      return next(new ErrorResponse('Bu telefon numarasının konumuna erişim yetkiniz yok', 403));
     }
 
-    if (!device.lastLocation) {
-      return next(new ErrorResponse('Bu cihaz için konum bilgisi bulunamadı', 404));
+    // Son konumu kullanıcı modelinden al
+    if (!targetUser.lastKnownLocation) {
+      return next(new ErrorResponse('Bu telefon numarası için konum bilgisi bulunamadı', 404));
     }
 
     res.status(200).json({
       success: true,
-      data: device.lastLocation
+      data: {
+        coordinates: {
+          type: 'Point',
+          coordinates: [targetUser.lastKnownLocation.longitude, targetUser.lastKnownLocation.latitude]
+        },
+        timestamp: targetUser.lastKnownLocation.timestamp
+      }
     });
   } catch (err) {
     next(err);
@@ -94,18 +101,19 @@ exports.getLatestDeviceLocation = async (req, res, next) => {
 // @access  Private
 exports.createLocation = async (req, res, next) => {
   try {
-    const { deviceId, latitude, longitude, altitude, speed, accuracy, address } = req.body;
+    const { phoneNumber, latitude, longitude, altitude, speed, accuracy, address } = req.body;
 
-    // Cihazı kontrol et
-    const device = await Device.findOne({ deviceId });
+    // Telefon numarasını kontrol et
+    const user = await User.findOne({ phoneNumber });
 
-    if (!device) {
-      return next(new ErrorResponse(`${deviceId} ID'li cihaz bulunamadı`, 404));
+    if (!user) {
+      return next(new ErrorResponse(`${phoneNumber} numaralı kullanıcı bulunamadı`, 404));
     }
 
     // Konum oluştur
     const location = await Location.create({
-      device: device._id,
+      phoneNumber,
+      user: user._id,
       coordinates: {
         type: 'Point',
         coordinates: [longitude, latitude]
@@ -125,10 +133,10 @@ exports.createLocation = async (req, res, next) => {
   }
 };
 
-// @desc    Belirli bir mesafe içindeki cihazları bul
+// @desc    Belirli bir mesafe içindeki kullanıcıları bul
 // @route   GET /api/locations/nearby
 // @access  Private
-exports.getNearbyDevices = async (req, res, next) => {
+exports.getNearbyUsers = async (req, res, next) => {
   try {
     const { latitude, longitude, distance = 10000 } = req.query; // Mesafe metre cinsinden
 
@@ -136,13 +144,8 @@ exports.getNearbyDevices = async (req, res, next) => {
       return next(new ErrorResponse('Lütfen konum bilgisi giriniz (latitude, longitude)', 400));
     }
 
-    // Kullanıcının cihazlarını bul
-    const userDevices = await Device.find({ user: req.user.id }).select('_id');
-    const userDeviceIds = userDevices.map(device => device._id);
-
     // Yakındaki konumları bul
     const locations = await Location.find({
-      device: { $in: userDeviceIds },
       coordinates: {
         $near: {
           $geometry: {
@@ -152,7 +155,7 @@ exports.getNearbyDevices = async (req, res, next) => {
           $maxDistance: parseInt(distance)
         }
       }
-    }).populate('device');
+    }).populate('user');
 
     res.status(200).json({
       success: true,

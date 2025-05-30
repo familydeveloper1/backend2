@@ -24,19 +24,27 @@ const UserSchema = new mongoose.Schema({
     minlength: [6, 'Şifre en az 6 karakter olmalıdır'],
     select: false
   },
-  devices: [{
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Device'
-  }],
+  // Telefon numarası tabanlı sistemde cihaz referansına gerek yok
   role: {
     type: String,
     enum: ['user', 'admin'],
     default: 'user'
   },
-  devices: [{
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Device'
-  }],
+  // Telefon numarası tabanlı sistem için son konum bilgisi
+  lastKnownLocation: {
+    latitude: {
+      type: Number,
+      default: 0
+    },
+    longitude: {
+      type: Number,
+      default: 0
+    },
+    timestamp: {
+      type: Date,
+      default: Date.now
+    }
+  },
   createdAt: {
     type: Date,
     default: Date.now
