@@ -4,15 +4,19 @@ const bodyParser = require('body-parser');
 const dotenv = require('dotenv');
 const connectDB = require('./config/db');
 const errorHandler = require('./middleware/error');
-const auth = require('./middleware/auth');
+// Auth middleware'ini import et
 
 // Models
 const Location = require('./models/Location');
 const User = require('./models/User');
 
-// Route imports - sadece kullanıcı ve izin rotalarını import ediyoruz
-const userRoutes = require('./routes/userRoutes');
-const permissionRoutes = require('./routes/permissionRoutes');
+// Models
+const AllowedNumber = require('./models/AllowedNumber');
+const PermissionRequest = require('./models/PermissionRequest');
+
+// Middleware
+const { protect } = require('./middleware/auth');
+const auth = protect;
 
 // Load environment variables
 dotenv.config();
@@ -40,9 +44,421 @@ app.use((req, res, next) => {
   next();
 });
 
-// Kullanıcı ve izin rotaları
-app.use('/api/users', userRoutes);
-app.use('/api/permissions', permissionRoutes);
+// KULLANICI ROTALARI
+
+// Kullanıcı kaydı
+app.post('/api/users/register', async (req, res, next) => {
+  try {
+    console.log('Register endpoint çağrıldı');
+    console.log('Request body:', req.body);
+    
+    const { name, phoneNumber, password } = req.body;
+
+    // Gerekli alanları kontrol et
+    if (!name || !phoneNumber || !password) {
+      console.log('Eksik alanlar:', { name, phoneNumber, password: password ? 'Var' : 'Yok' });
+      return next(new ErrorResponse('Lütfen tüm alanları doldurunuz', 400));
+    }
+
+    // Kullanıcı oluştur
+    const user = await User.create({
+      name,
+      phoneNumber,
+      password
+    });
+
+    console.log('Kullanıcı başarıyla oluşturuldu:', user._id);
+    
+    // Token oluştur
+    const token = user.getSignedJwtToken();
+
+    res.status(201).json({
+      success: true,
+      token,
+      user: {
+        id: user._id,
+        name: user.name,
+        phoneNumber: user.phoneNumber,
+        role: user.role
+      }
+    });
+  } catch (err) {
+    console.error('Kayıt hatası:', err.message);
+    next(err);
+  }
+});
+
+// Kullanıcı girişi
+app.post('/api/users/login', async (req, res, next) => {
+  try {
+    console.log('Login endpoint çağrıldı');
+    console.log('Request body:', req.body);
+    
+    const { phoneNumber, password } = req.body;
+
+    // Telefon numarası ve şifre kontrolü
+    if (!phoneNumber || !password) {
+      console.log('Eksik giriş bilgileri');
+      return next(new ErrorResponse('Lütfen telefon numarası ve şifre giriniz', 400));
+    }
+
+    // Kullanıcıyı kontrol et
+    const user = await User.findOne({ phoneNumber }).select('+password');
+
+    if (!user) {
+      console.log('Kullanıcı bulunamadı:', phoneNumber);
+      return next(new ErrorResponse('Geçersiz kimlik bilgileri', 401));
+    }
+
+    // Şifre kontrolü
+    const isMatch = await user.matchPassword(password);
+
+    if (!isMatch) {
+      console.log('Şifre eşleşmiyor:', phoneNumber);
+      return next(new ErrorResponse('Geçersiz kimlik bilgileri', 401));
+    }
+
+    console.log('Kullanıcı girişi başarılı:', user._id);
+    
+    // Token oluştur
+    const token = user.getSignedJwtToken();
+
+    res.status(200).json({
+      success: true,
+      token,
+      user: {
+        id: user._id,
+        name: user.name,
+        phoneNumber: user.phoneNumber,
+        role: user.role
+      }
+    });
+  } catch (err) {
+    console.error('Giriş hatası:', err.message);
+    next(err);
+  }
+});
+
+// Mevcut kullanıcı bilgilerini getir
+app.get('/api/users/me', auth, async (req, res, next) => {
+  try {
+    console.log('GetMe endpoint çağrıldı, kullanıcı ID:', req.user.id);
+    
+    const user = await User.findById(req.user.id);
+    
+    if (!user) {
+      console.log('Kullanıcı bulunamadı:', req.user.id);
+      return next(new ErrorResponse('Kullanıcı bulunamadı', 404));
+    }
+    
+    console.log('Kullanıcı bilgileri başarıyla getirildi');
+    res.status(200).json({
+      success: true,
+      data: user
+    });
+  } catch (err) {
+    console.error('GetMe hatası:', err.message);
+    next(err);
+  }
+});
+
+// Kullanıcı bilgilerini güncelle
+app.put('/api/users/me', auth, async (req, res, next) => {
+  try {
+    console.log('UpdateDetails endpoint çağrıldı, kullanıcı ID:', req.user.id);
+    console.log('Güncellenecek alanlar:', req.body);
+    
+    const fieldsToUpdate = {
+      name: req.body.name,
+      phoneNumber: req.body.phoneNumber
+    };
+
+    const user = await User.findByIdAndUpdate(req.user.id, fieldsToUpdate, {
+      new: true,
+      runValidators: true
+    });
+
+    if (!user) {
+      console.log('Kullanıcı bulunamadı:', req.user.id);
+      return next(new ErrorResponse('Kullanıcı bulunamadı', 404));
+    }
+
+    console.log('Kullanıcı bilgileri başarıyla güncellendi');
+    res.status(200).json({
+      success: true,
+      data: user
+    });
+  } catch (err) {
+    console.error('UpdateDetails hatası:', err.message);
+    next(err);
+  }
+});
+
+// Şifre güncelle
+app.put('/api/users/updatepassword', auth, async (req, res, next) => {
+  try {
+    console.log('UpdatePassword endpoint çağrıldı, kullanıcı ID:', req.user.id);
+    
+    const user = await User.findById(req.user.id).select('+password');
+
+    if (!user) {
+      console.log('Kullanıcı bulunamadı:', req.user.id);
+      return next(new ErrorResponse('Kullanıcı bulunamadı', 404));
+    }
+
+    // Mevcut şifreyi kontrol et
+    if (!(await user.matchPassword(req.body.currentPassword))) {
+      console.log('Mevcut şifre eşleşmiyor');
+      return next(new ErrorResponse('Mevcut şifre yanlış', 401));
+    }
+
+    user.password = req.body.newPassword;
+    await user.save();
+
+    console.log('Kullanıcı şifresi başarıyla güncellendi');
+    
+    // Token oluştur
+    const token = user.getSignedJwtToken();
+
+    res.status(200).json({
+      success: true,
+      token,
+      user: {
+        id: user._id,
+        name: user.name,
+        phoneNumber: user.phoneNumber,
+        role: user.role
+      }
+    });
+  } catch (err) {
+    console.error('UpdatePassword hatası:', err.message);
+    next(err);
+  }
+});
+
+// İZİN ROTALARI
+
+// İzin verilen numaraları getir
+app.get('/api/permissions/allowed-numbers', auth, async (req, res, next) => {
+  try {
+    const allowedNumbers = await AllowedNumber.find({ user: req.user.id });
+
+    res.status(200).json({
+      success: true,
+      count: allowedNumbers.length,
+      data: allowedNumbers
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// İzin verilen numara ekle
+app.post('/api/permissions/allowed-numbers', auth, async (req, res, next) => {
+  try {
+    // Kullanıcı ID'sini ekle
+    req.body.user = req.user.id;
+
+    // Telefon numarası zaten eklenmiş mi kontrol et
+    const existingNumber = await AllowedNumber.findOne({
+      user: req.user.id,
+      phoneNumber: req.body.phoneNumber
+    });
+
+    if (existingNumber) {
+      return next(new ErrorResponse('Bu telefon numarası zaten izin verilenler listesinde', 400));
+    }
+
+    const allowedNumber = await AllowedNumber.create(req.body);
+
+    res.status(201).json({
+      success: true,
+      message: 'Telefon numarası başarıyla eklendi',
+      data: allowedNumber
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// İzin verilen numara sil
+app.delete('/api/permissions/allowed-numbers/:id', auth, async (req, res, next) => {
+  try {
+    const allowedNumber = await AllowedNumber.findById(req.params.id);
+
+    if (!allowedNumber) {
+      return next(new ErrorResponse(`${req.params.id} ID'li izin verilen numara bulunamadı`, 404));
+    }
+
+    // Numaranın kullanıcıya ait olup olmadığını kontrol et
+    if (allowedNumber.user.toString() !== req.user.id) {
+      return next(new ErrorResponse('Bu numarayı silme yetkiniz yok', 403));
+    }
+
+    await allowedNumber.deleteOne();
+
+    res.status(200).json({
+      success: true,
+      message: 'Telefon numarası başarıyla silindi',
+      data: {}
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Telefon numarası için izin isteği gönder
+app.post('/api/permissions/request', auth, async (req, res, next) => {
+  try {
+    const { targetPhoneNumber, requesterPhone } = req.body;
+
+    // Hedef telefon numarasının sahibini bul
+    const owner = await User.findOne({ phoneNumber: targetPhoneNumber });
+
+    if (!owner) {
+      return next(new ErrorResponse(`${targetPhoneNumber} numaralı kullanıcı bulunamadı`, 404));
+    }
+
+    // İzin isteği zaten var mı kontrol et
+    const existingRequest = await PermissionRequest.findOne({
+      targetPhoneNumber,
+      requesterPhone,
+      status: 'pending'
+    });
+
+    if (existingRequest) {
+      return next(new ErrorResponse('Bu telefon numarası için zaten bir izin isteğiniz var', 400));
+    }
+
+    // Yeni izin isteği oluştur
+    const permissionRequest = await PermissionRequest.create({
+      targetPhoneNumber,
+      requesterPhone,
+      ownerPhoneNumber: targetPhoneNumber,
+      ownerUser: owner._id
+    });
+
+    res.status(201).json({
+      success: true,
+      message: 'İzin isteği başarıyla gönderildi',
+      data: permissionRequest
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// İzin isteklerini getir
+app.get('/api/permissions/requests', auth, async (req, res, next) => {
+  try {
+    // Telefon numarası tabanlı sistem için güncellendi
+    const permissionRequests = await PermissionRequest.find({ 
+      $or: [
+        { ownerUser: req.user.id },
+        { ownerPhoneNumber: req.user.phoneNumber }
+      ]
+    });
+
+    res.status(200).json({
+      success: true,
+      count: permissionRequests.length,
+      data: permissionRequests
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// İzin isteğini yanıtla
+app.put('/api/permissions/request/:id', auth, async (req, res, next) => {
+  try {
+    const { accept } = req.body;
+
+    const permissionRequest = await PermissionRequest.findById(req.params.id);
+
+    if (!permissionRequest) {
+      return next(new ErrorResponse(`${req.params.id} ID'li izin isteği bulunamadı`, 404));
+    }
+
+    // İsteğin kullanıcıya ait olup olmadığını kontrol et - telefon numarası tabanlı sistem için güncellendi
+    if (permissionRequest.ownerPhoneNumber !== req.user.phoneNumber && 
+        (!permissionRequest.ownerUser || permissionRequest.ownerUser.toString() !== req.user.id)) {
+      return next(new ErrorResponse('Bu isteği yanıtlama yetkiniz yok', 403));
+    }
+
+    // İsteği güncelle
+    permissionRequest.status = accept ? 'accepted' : 'rejected';
+    await permissionRequest.save();
+
+    res.status(200).json({
+      success: true,
+      message: accept ? 'İzin isteği kabul edildi' : 'İzin isteği reddedildi',
+      data: permissionRequest
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Bir telefon numarasını takip etmek için izin durumunu kontrol et
+app.get('/api/permissions/check/phone/:phoneNumber', auth, async (req, res, next) => {
+  try {
+    const { phoneNumber } = req.params;
+
+    // Hedef telefon numarasının sahibini bul
+    const targetUser = await User.findOne({ phoneNumber });
+
+    if (!targetUser) {
+      return next(new ErrorResponse(`${phoneNumber} numaralı kullanıcı bulunamadı`, 404));
+    }
+
+    // Kullanıcı kendisi mi kontrol et?
+    if (req.user.phoneNumber === phoneNumber) {
+      return res.status(200).json({
+        success: true,
+        hasPermission: true,
+        message: 'Bu telefon numarası size ait'
+      });
+    }
+
+    // Kullanıcının telefon numarası izin verilen numaralar listesinde mi?
+    const allowedNumber = await AllowedNumber.findOne({
+      user: targetUser._id,
+      phoneNumber: req.user.phoneNumber
+    });
+
+    if (allowedNumber) {
+      return res.status(200).json({
+        success: true,
+        hasPermission: true,
+        message: 'Bu kullanıcıyı takip etme izniniz var'
+      });
+    }
+
+    // İzin isteği kabul edilmiş mi?
+    const acceptedRequest = await PermissionRequest.findOne({
+      targetPhoneNumber: phoneNumber,
+      requesterPhone: req.user.phoneNumber,
+      status: 'accepted'
+    });
+
+    if (acceptedRequest) {
+      return res.status(200).json({
+        success: true,
+        hasPermission: true,
+        message: 'İzin isteğiniz kabul edildi'
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      hasPermission: false,
+      message: 'Bu kullanıcıyı takip etme izniniz yok'
+    });
+  } catch (err) {
+    next(err);
+  }
+});
 
 // Konum rotalarını doğrudan server.js içinde tanımlıyoruz
 
