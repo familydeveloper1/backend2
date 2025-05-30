@@ -355,7 +355,7 @@ app.get('/api/permissions/requests', auth, async (req, res, next) => {
     const permissionRequests = await PermissionRequest.find({ 
       $or: [
         { ownerUser: req.user.id },
-        { ownerPhoneNumber: req.user.phoneNumber }
+        { requesterPhone: req.user.phoneNumber }
       ]
     });
 
@@ -558,7 +558,7 @@ app.get('/api/locations/phone/:phoneNumber/latest', auth, async (req, res) => {
     // Önce izin kontrolü yapalım
     const permissionExists = await PermissionRequest.findOne({
       targetPhoneNumber: phoneNumber,
-      ownerPhoneNumber: req.user.phoneNumber,
+      requesterPhone: req.user.phoneNumber,
       status: 'accepted'
     });
     
@@ -605,7 +605,7 @@ app.get('/api/locations/phone/:phoneNumber', auth, async (req, res) => {
     // Önce izin kontrolü yapalım
     const permissionExists = await PermissionRequest.findOne({
       targetPhoneNumber: phoneNumber,
-      ownerPhoneNumber: req.user.phoneNumber,
+      requesterPhone: req.user.phoneNumber,
       status: 'accepted'
     });
     
