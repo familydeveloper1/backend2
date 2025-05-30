@@ -489,7 +489,7 @@ app.post('/api/locations/phone', auth, async (req, res) => {
 
     console.log('Kullanıcı bulundu:', user._id);
 
-    // Konum oluştur
+    // Konum verileri
     const locationData = {
       phoneNumber,
       user: user._id,
@@ -508,19 +508,25 @@ app.post('/api/locations/phone', auth, async (req, res) => {
 
     console.log('Kaydedilecek konum verileri:', locationData);
 
-    // Konum oluştur
-    const location = await Location.create(locationData);
-    console.log('Konum başarıyla kaydedildi:', location._id);
+    // Aynı telefon numarası için mevcut konum kaydını ara ve güncelle, yoksa yeni oluştur
+    const location = await Location.findOneAndUpdate(
+      { phoneNumber },
+      locationData,
+      { new: true, upsert: true, setDefaultsOnInsert: true }
+    );
+    
+    console.log('Konum başarıyla güncellendi/kaydedildi:', location._id);
 
     // Kullanıcının son konum bilgisini güncelle
     user.lastKnownLocation = {
-      type: 'Point',
-      coordinates: [longitude, latitude]
+      latitude,
+      longitude,
+      timestamp: timestamp || Date.now()
     };
     await user.save();
     console.log('Kullanıcının son konum bilgisi güncellendi');
 
-    res.status(201).json({
+    res.status(200).json({
       success: true,
       data: location
     });
