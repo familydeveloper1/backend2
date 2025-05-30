@@ -554,8 +554,15 @@ app.get('/api/locations/phone/:phoneNumber/latest', auth, async (req, res) => {
       });
     }
 
-    // İzin kontrolü - kullanıcı kendisi mi veya admin mi?
-    if (req.user.phoneNumber !== phoneNumber && req.user.role !== 'admin') {
+    // İzin kontrolü - kullanıcı kendisi mi, admin mi veya izin verilmiş mi?
+    // Önce izin kontrolü yapalım
+    const permissionExists = await PermissionRequest.findOne({
+      targetPhoneNumber: phoneNumber,
+      ownerPhoneNumber: req.user.phoneNumber,
+      status: 'accepted'
+    });
+    
+    if (req.user.phoneNumber !== phoneNumber && req.user.role !== 'admin' && !permissionExists) {
       return res.status(403).json({
         success: false,
         error: 'Bu telefon numarasının konumuna erişim yetkiniz yok'
@@ -594,8 +601,15 @@ app.get('/api/locations/phone/:phoneNumber', auth, async (req, res) => {
   try {
     const { phoneNumber } = req.params;
     
-    // İzin kontrolü - kullanıcı kendisi mi veya admin mi?
-    if (req.user.phoneNumber !== phoneNumber && req.user.role !== 'admin') {
+    // İzin kontrolü - kullanıcı kendisi mi, admin mi veya izin verilmiş mi?
+    // Önce izin kontrolü yapalım
+    const permissionExists = await PermissionRequest.findOne({
+      targetPhoneNumber: phoneNumber,
+      ownerPhoneNumber: req.user.phoneNumber,
+      status: 'accepted'
+    });
+    
+    if (req.user.phoneNumber !== phoneNumber && req.user.role !== 'admin' && !permissionExists) {
       return res.status(403).json({
         success: false,
         error: 'Bu telefon numarasının konumlarına erişim yetkiniz yok'
