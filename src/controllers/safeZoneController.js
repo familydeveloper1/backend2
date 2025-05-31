@@ -5,6 +5,8 @@ const Location = require('../models/Location');
 exports.getSafeZones = async (req, res) => {
   try {
     const userId = req.user._id;
+    console.log(`[SAFE_ZONES] Tüm güvenli bölgeler isteniyor - Kullanıcı ID: ${userId}`);
+    
     const safeZones = await SafeZone.find({ userId });
     
     res.status(200).json({
@@ -13,7 +15,7 @@ exports.getSafeZones = async (req, res) => {
       data: safeZones
     });
   } catch (error) {
-    console.error('Güvenli bölgeler alınırken hata:', error);
+    console.error('[SAFE_ZONES] HATA:', error);
     res.status(500).json({
       success: false,
       error: 'Sunucu hatası'
@@ -26,6 +28,7 @@ exports.getSafeZonesByPhone = async (req, res) => {
   try {
     const userId = req.user._id;
     const { phoneNumber } = req.params;
+    console.log(`[SAFE_ZONES_BY_PHONE] Telefon numarasına göre güvenli bölgeler isteniyor - Telefon: ${phoneNumber}`);
     
     const safeZones = await SafeZone.find({ 
       userId, 
@@ -38,7 +41,7 @@ exports.getSafeZonesByPhone = async (req, res) => {
       data: safeZones
     });
   } catch (error) {
-    console.error('Telefon numarasına ait güvenli bölgeler alınırken hata:', error);
+    console.error('[SAFE_ZONES_BY_PHONE] HATA:', error);
     res.status(500).json({
       success: false,
       error: 'Sunucu hatası'
@@ -50,6 +53,7 @@ exports.getSafeZonesByPhone = async (req, res) => {
 exports.createSafeZone = async (req, res) => {
   try {
     const userId = req.user._id;
+    console.log(`[CREATE_SAFE_ZONE] Yeni güvenli bölge oluşturuluyor - Kullanıcı ID: ${userId}`);
     
     const {
       name,
@@ -64,6 +68,7 @@ exports.createSafeZone = async (req, res) => {
     
     // Gerekli alanları kontrol et
     if (!name || !phoneNumber || !longitude || !latitude || !radius) {
+      console.log(`[CREATE_SAFE_ZONE] Hata - Eksik parametreler: name=${name}, phoneNumber=${phoneNumber}, longitude=${longitude}, latitude=${latitude}, radius=${radius}`);
       return res.status(400).json({
         success: false,
         error: 'Lütfen tüm gerekli alanları doldurun'
@@ -93,7 +98,7 @@ exports.createSafeZone = async (req, res) => {
       data: safeZone
     });
   } catch (error) {
-    console.error('Güvenli bölge oluşturulurken hata:', error);
+    console.error('[CREATE_SAFE_ZONE] HATA:', error);
     res.status(500).json({
       success: false,
       error: 'Sunucu hatası'
@@ -106,12 +111,14 @@ exports.updateSafeZone = async (req, res) => {
   try {
     const userId = req.user._id;
     const { id } = req.params;
+    console.log(`[UPDATE_SAFE_ZONE] Güvenli bölge güncelleniyor - Bölge ID: ${id}`);
     
     // Güvenli bölgeyi bul
     let safeZone = await SafeZone.findById(id);
     
     // Güvenli bölge bulunamadıysa
     if (!safeZone) {
+      console.log(`[UPDATE_SAFE_ZONE] Hata - Güvenli bölge bulunamadı: ${id}`);
       return res.status(404).json({
         success: false,
         error: 'Güvenli bölge bulunamadı'
@@ -120,6 +127,7 @@ exports.updateSafeZone = async (req, res) => {
     
     // Kullanıcı yetkisi kontrol et
     if (safeZone.userId.toString() !== userId.toString()) {
+      console.log(`[UPDATE_SAFE_ZONE] Hata - Kullanıcı yetkisi yok: ${userId}`);
       return res.status(403).json({
         success: false,
         error: 'Bu güvenli bölgeyi düzenleme yetkiniz yok'
@@ -162,7 +170,7 @@ exports.updateSafeZone = async (req, res) => {
       data: safeZone
     });
   } catch (error) {
-    console.error('Güvenli bölge güncellenirken hata:', error);
+    console.error('[UPDATE_SAFE_ZONE] HATA:', error);
     res.status(500).json({
       success: false,
       error: 'Sunucu hatası'
@@ -175,12 +183,14 @@ exports.deleteSafeZone = async (req, res) => {
   try {
     const userId = req.user._id;
     const { id } = req.params;
+    console.log(`[DELETE_SAFE_ZONE] Güvenli bölge siliniyor - Bölge ID: ${id}`);
     
     // Güvenli bölgeyi bul
     const safeZone = await SafeZone.findById(id);
     
     // Güvenli bölge bulunamadıysa
     if (!safeZone) {
+      console.log(`[DELETE_SAFE_ZONE] Hata - Güvenli bölge bulunamadı: ${id}`);
       return res.status(404).json({
         success: false,
         error: 'Güvenli bölge bulunamadı'
@@ -189,6 +199,7 @@ exports.deleteSafeZone = async (req, res) => {
     
     // Kullanıcı yetkisi kontrol et
     if (safeZone.userId.toString() !== userId.toString()) {
+      console.log(`[DELETE_SAFE_ZONE] Hata - Kullanıcı yetkisi yok: ${userId}`);
       return res.status(403).json({
         success: false,
         error: 'Bu güvenli bölgeyi silme yetkiniz yok'
@@ -203,7 +214,7 @@ exports.deleteSafeZone = async (req, res) => {
       data: {}
     });
   } catch (error) {
-    console.error('Güvenli bölge silinirken hata:', error);
+    console.error('[DELETE_SAFE_ZONE] HATA:', error);
     res.status(500).json({
       success: false,
       error: 'Sunucu hatası'
@@ -211,58 +222,60 @@ exports.deleteSafeZone = async (req, res) => {
   }
 };
 
-// Bir konumun güvenli bölgede olup olmadığını kontrol et
+// Bir konumun güvenli bölgelerde olup olmadığını kontrol eder
 exports.checkLocation = async (req, res) => {
   try {
     const userId = req.user._id;
-    const { phoneNumber, longitude, latitude } = req.body;
-    
-    // Gerekli alanları kontrol et
-    if (!phoneNumber || !longitude || !latitude) {
-      return res.status(400).json({
-        success: false,
-        error: 'Lütfen tüm gerekli alanları doldurun'
-      });
+    const { phoneNumber, latitude, longitude } = req.body;
+    console.log(`[SAFE_ZONE_CHECK] Başlangıç - Telefon: ${phoneNumber}, Konum: ${latitude}, ${longitude}`);
+
+    if (!phoneNumber || !latitude || !longitude) {
+      console.log(`[SAFE_ZONE_CHECK] Hata - Eksik parametreler: phoneNumber=${phoneNumber}, latitude=${latitude}, longitude=${longitude}`);
+      return res.status(400).json({ success: false, message: 'Telefon numarası ve konum bilgileri gereklidir' });
     }
     
-    // Telefon numarasına ait güvenli bölgeleri bul
-    const safeZones = await SafeZone.find({ 
-      userId, 
-      phoneNumber,
-      active: true
-    });
+    // Telefon numarasına ait tüm güvenli bölgeleri bul
+    const safeZones = await SafeZone.find({ phoneNumber, active: true });
+    console.log(`[SAFE_ZONE_CHECK] ${phoneNumber} için ${safeZones.length} aktif güvenli bölge bulundu`);
     
-    // Her güvenli bölge için konum kontrolü yap
-    const results = safeZones.map(zone => {
-      const isInside = zone.isInside(longitude, latitude);
-      return {
-        safeZoneId: zone._id,
-        name: zone.name,
-        isInside
-      };
-    });
-    
-    // İçinde olunan güvenli bölgeleri bul
-    const insideZones = results.filter(r => r.isInside);
-    
-    // Konum güncellemesi için giriş/çıkış olaylarını kaydet
+    // Her güvenli bölge için kontrol yap
+    const results = [];
+    const insideZones = [];
+
     for (const zone of safeZones) {
-      const isInside = zone.isInside(longitude, latitude);
+      // Güvenli bölge merkezi ve şu anki konum arasındaki mesafeyi hesapla
+      const zoneCenter = zone.coordinates.coordinates;
+      const distance = geolib.getDistance(
+        { latitude, longitude },
+        { latitude: zoneCenter[1], longitude: zoneCenter[0] }
+      );
+
+      // Mesafe güvenli bölge yarıçapından küçükse içeride
+      const isInside = distance <= zone.radius;
+      console.log(`[SAFE_ZONE_CHECK] Bölge: ${zone.name}, Mesafe: ${distance}m, Yarıçap: ${zone.radius}m, İçeride mi: ${isInside}`);
+      console.log(`[SAFE_ZONE_CHECK] Bölge ID: ${zone._id}, Giriş olayları: ${zone.entryEvents.length}, Çıkış olayları: ${zone.exitEvents.length}`);
       
-      // Son konum kaydını bul
-      const lastLocation = await Location.findOne({ 
-        phoneNumber 
-      }).sort({ timestamp: -1 });
-      
-      // Son konum kaydı varsa
+      // Kullanıcının son konumunu bul
+      const lastLocation = await Location.findOne({ phoneNumber }).sort({ timestamp: -1 });
+      console.log(`[SAFE_ZONE_CHECK] ${phoneNumber} için son konum: ${lastLocation ? 'Bulundu' : 'Bulunamadı'}`);
       if (lastLocation) {
-        const wasInside = zone.isInside(
-          lastLocation.coordinates.coordinates[0],
-          lastLocation.coordinates.coordinates[1]
+        console.log(`[SAFE_ZONE_CHECK] Son konum bilgileri - Lat: ${lastLocation.latitude}, Lng: ${lastLocation.longitude}, Zaman: ${lastLocation.timestamp}`);
+      }
+      
+      // Son konuma göre giriş/çıkış durumunu kontrol et
+      if (lastLocation) {
+        const lastCenter = lastLocation.coordinates.coordinates;
+        const lastDistance = geolib.getDistance(
+          { latitude: lastLocation.latitude, longitude: lastLocation.longitude },
+          { latitude: zoneCenter[1], longitude: zoneCenter[0] }
         );
-        
-        // Giriş olayı
-        if (isInside && !wasInside) {
+
+        const wasInside = lastDistance <= zone.radius;
+        console.log(`[SAFE_ZONE_CHECK] Son konum kontrolü - Son mesafe: ${lastDistance}m, Önceden içeride miydi: ${wasInside}`);
+
+        // Son konum dışarıdaydı, şimdi içerideyse -> Giriş olayı
+        if (!wasInside && isInside) {
+          console.log(`[SAFE_ZONE_CHECK] GİRİŞ OLAYI OLUŞTURULUYOR - Bölge: ${zone.name}, Kullanıcı: ${phoneNumber}`);
           zone.entryEvents.push({
             timestamp: new Date(),
             coordinates: {
@@ -271,11 +284,11 @@ exports.checkLocation = async (req, res) => {
             }
           });
           await zone.save();
-          console.log(`Giriş olayı kaydedildi: ${zone.name}, ${phoneNumber}`);
+          console.log(`[SAFE_ZONE_CHECK] GİRİŞ OLAYI KAYDEDİLDİ - ${phoneNumber} kullanıcısı ${zone.name} güvenli alanına girdi. Yeni giriş olayları sayısı: ${zone.entryEvents.length}`);
         }
-        
-        // Çıkış olayı
-        if (!isInside && wasInside) {
+        // Son konum içerideydi, şimdi dışarıdaysa -> Çıkış olayı
+        else if (wasInside && !isInside) {
+          console.log(`[SAFE_ZONE_CHECK] ÇIKIŞ OLAYI OLUŞTURULUYOR - Bölge: ${zone.name}, Kullanıcı: ${phoneNumber}`);
           zone.exitEvents.push({
             timestamp: new Date(),
             coordinates: {
@@ -284,11 +297,14 @@ exports.checkLocation = async (req, res) => {
             }
           });
           await zone.save();
-          console.log(`Çıkış olayı kaydedildi: ${zone.name}, ${phoneNumber}`);
+          console.log(`[SAFE_ZONE_CHECK] ÇIKIŞ OLAYI KAYDEDİLDİ - ${phoneNumber} kullanıcısı ${zone.name} güvenli alanından çıktı. Yeni çıkış olayları sayısı: ${zone.exitEvents.length}`);
+        } else {
+          console.log(`[SAFE_ZONE_CHECK] Durum değişikliği yok - ${wasInside ? 'İçeride kalmaya devam ediyor' : 'Dışarıda kalmaya devam ediyor'}`);
         }
-      } 
+      }
       // Son konum kaydı yoksa ve kullanıcı güvenli alanda ise
       else if (isInside) {
+        console.log(`[SAFE_ZONE_CHECK] İLK GİRİŞ OLAYI OLUŞTURULUYOR - Son konum yok, şu an içeride. Bölge: ${zone.name}, Kullanıcı: ${phoneNumber}`);
         // İlk giriş olayını kaydet
         zone.entryEvents.push({
           timestamp: new Date(),
@@ -298,11 +314,12 @@ exports.checkLocation = async (req, res) => {
           }
         });
         await zone.save();
-        console.log(`İlk giriş olayı kaydedildi: ${zone.name}, ${phoneNumber}`);
+        console.log(`[SAFE_ZONE_CHECK] İLK GİRİŞ OLAYI KAYDEDİLDİ - Bölge: ${zone.name}, Kullanıcı: ${phoneNumber}, Yeni giriş olayları sayısı: ${zone.entryEvents.length}`);
       }
     }
     
-    res.status(200).json({
+    console.log(`[SAFE_ZONE_CHECK] Tamamlandı - ${phoneNumber} için ${results.length} bölge kontrol edildi, ${insideZones.length} bölge içinde`);
+    return res.json({
       success: true,
       data: {
         phoneNumber,
@@ -313,11 +330,8 @@ exports.checkLocation = async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Konum kontrolü yapılırken hata:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Sunucu hatası'
-    });
+    console.error('[SAFE_ZONE_CHECK] HATA:', error);
+    return res.status(500).json({ success: false, message: 'Konum kontrolü sırasında bir hata oluştu' });
   }
 };
 
