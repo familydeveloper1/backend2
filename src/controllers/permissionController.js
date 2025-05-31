@@ -65,6 +65,7 @@ exports.addAllowedNumber = async (req, res, next) => {
       data: allowedNumber
     });
   } catch (err) {
+    console.error('Genel hata:', err);
     next(err);
   }
 };
@@ -169,11 +170,20 @@ exports.getPermissionRequests = async (req, res, next) => {
 exports.respondToPermissionRequest = async (req, res, next) => {
   console.log('==== İZIN İSTEĞİ YANITLAMA BAŞLADI ====');
   console.log(`İstek ID: ${req.params.id}`);
+  console.log(`Request body:`, JSON.stringify(req.body, null, 2));
+  console.log(`User:`, JSON.stringify(req.user, null, 2));
+  console.log('==== İZIN İSTEĞİ YANITLAMA BAŞLADI ====');
+  console.log(`İstek ID: ${req.params.id}`);
   console.log(`Yanıt: ${req.body.accept ? 'Kabul' : 'Red'}`);
+  console.log(`Request body:`, JSON.stringify(req.body, null, 2));
+  console.log(`User:`, JSON.stringify(req.user, null, 2));
   
   try {
-    const { accept } = req.body;
-
+    const { accept, status } = req.body;
+    // status parametresi varsa onu kullan, yoksa accept parametresini kullan
+    const isAccepted = status === 'accepted' ? true : (accept === true);
+    
+    console.log(`İzin isteği yanıtı: ${isAccepted ? 'KABUL' : 'RED'}`);
     console.log(`İzin isteği bulunuyor... ID: ${req.params.id}`);
     const permissionRequest = await PermissionRequest.findById(req.params.id);
 
@@ -195,13 +205,13 @@ exports.respondToPermissionRequest = async (req, res, next) => {
     }
 
     // İsteği güncelle
-    console.log(`İzin isteği durumu güncelleniyor: ${accept ? 'accepted' : 'rejected'}`);
-    permissionRequest.status = accept ? 'accepted' : 'rejected';
+    console.log(`İzin isteği durumu güncelleniyor: ${isAccepted ? 'accepted' : 'rejected'}`);
+    permissionRequest.status = isAccepted ? 'accepted' : 'rejected';
     await permissionRequest.save();
     console.log('İzin isteği durumu güncellendi');
     
     // Eğer istek kabul edildiyse, numarayı izin verilen numaralar listesine ekle
-    if (accept) {
+    if (isAccepted) {
       console.log('==== İZİN VERİLEN NUMARA EKLEME İŞLEMİ BAŞLADI ====');
       try {
         console.log(`İzin isteği kabul edildi. İstek sahibi tel: ${permissionRequest.requesterPhone}, Hedef (izin verilen) tel: ${permissionRequest.targetPhoneNumber}`);
@@ -228,6 +238,12 @@ exports.respondToPermissionRequest = async (req, res, next) => {
         
         if (!existingAllowedNumber) {
           console.log('Yeni izin verilen numara oluşturuluyor...');
+          
+          // AllowedNumber modelinin şemasını kontrol et
+          console.log('AllowedNumber şeması:', Object.keys(AllowedNumber.schema.paths));
+          
+          console.log('AllowedNumber şeması:', Object.keys(AllowedNumber.schema.paths));
+          
           const newAllowedNumber = new AllowedNumber({
             user: requesterUser._id, 
             phoneNumber: permissionRequest.targetPhoneNumber, 
@@ -236,11 +252,24 @@ exports.respondToPermissionRequest = async (req, res, next) => {
           });
           
           console.log(`Yeni izin verilen numara oluşturuldu (kaydetmeden önce):`, JSON.stringify(newAllowedNumber, null, 2));
+          console.log(`Yeni izin verilen numara validasyon sonucu:`, newAllowedNumber.validateSync() ? 'HATALI' : 'GEÇERLİ');
+          
+          if (newAllowedNumber.validateSync()) {
+            console.error('Validasyon hatası:', newAllowedNumber.validateSync());
+          }
+          
+          console.log(`Yeni izin verilen numara oluşturuldu (kaydetmeden önce):`, JSON.stringify(newAllowedNumber, null, 2));
+          console.log(`Yeni izin verilen numara validasyon sonucu:`, newAllowedNumber.validateSync() ? 'HATALI' : 'GEÇERLİ');
+          
+          if (newAllowedNumber.validateSync()) {
+            console.error('Validasyon hatası:', newAllowedNumber.validateSync());
+          }
           
           console.log('Yeni izin verilen numara veritabanına kaydediliyor...');
           try {
-            await newAllowedNumber.save();
-            console.log(`Başarıyla kaydedildi: ${newAllowedNumber.phoneNumber}, ${requesterUser.name} kullanıcısının izin listesine eklendi.`);
+            const savedAllowedNumber = await newAllowedNumber.save();
+            console.log(`Başarıyla kaydedildi: ${savedAllowedNumber.phoneNumber}, ${requesterUser.name} kullanıcısının izin listesine eklendi.`);
+            console.log('Kaydedilen veri:', JSON.stringify(savedAllowedNumber, null, 2));
           } catch (saveError) {
             console.error('Yeni izin verilen numara kaydedilirken veritabanı hatası:', saveError);
             if (saveError.errors) {
@@ -252,6 +281,7 @@ exports.respondToPermissionRequest = async (req, res, next) => {
           }
         } else {
           console.log(`${permissionRequest.targetPhoneNumber} numarası zaten ${requesterUser.name} (${requesterUser.phoneNumber}) kullanıcısının izin verilenler listesinde bulunuyor.`);
+          console.log('Mevcut izin verilen numara:', JSON.stringify(existingAllowedNumber, null, 2));
         }
         console.log('==== İZİN VERİLEN NUMARA EKLEME İŞLEMİ TAMAMLANDI ====');
       } catch (allowedNumberError) {
@@ -265,10 +295,11 @@ exports.respondToPermissionRequest = async (req, res, next) => {
 
     res.status(200).json({
       success: true,
-      message: accept ? 'İzin isteği kabul edildi' : 'İzin isteği reddedildi',
+      message: isAccepted ? 'İzin isteği kabul edildi' : 'İzin isteği reddedildi',
       data: permissionRequest
     });
   } catch (err) {
+    console.error('Genel hata:', err);
     next(err);
   }
 };
