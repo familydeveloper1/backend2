@@ -245,9 +245,19 @@ exports.checkLocation = async (req, res) => {
     const { phoneNumber, latitude, longitude } = req.body;
     console.log(`[SAFE_ZONE_CHECK] Başlangıç - Telefon: ${phoneNumber}, Konum: ${latitude}, ${longitude}`);
 
-    if (!phoneNumber || !latitude || !longitude) {
+    // Konum verilerinin doğru formatta olup olmadığını kontrol et
+    if (!phoneNumber || latitude === undefined || longitude === undefined) {
       console.log(`[SAFE_ZONE_CHECK] Hata - Eksik parametreler: phoneNumber=${phoneNumber}, latitude=${latitude}, longitude=${longitude}`);
       return res.status(400).json({ success: false, message: 'Telefon numarası ve konum bilgileri gereklidir' });
+    }
+    
+    // Konum verilerini sayıya dönüştür (iOS emülatöründen string olarak gelebilir)
+    const lat = parseFloat(latitude);
+    const lng = parseFloat(longitude);
+    
+    if (isNaN(lat) || isNaN(lng)) {
+      console.log(`[SAFE_ZONE_CHECK] Hata - Geçersiz konum formatı: latitude=${latitude}, longitude=${longitude}`);
+      return res.status(400).json({ success: false, message: 'Geçersiz konum formatı' });
     }
     
     // Telefon numarasına ait tüm güvenli bölgeleri bul
@@ -269,9 +279,11 @@ exports.checkLocation = async (req, res) => {
       // Güvenli bölge merkezi ve şu anki konum arasındaki mesafeyi hesapla
       const zoneCenter = zone.coordinates.coordinates;
       const distance = haversine(
-        latitude, longitude,
+        lat, lng, // Dönüştürülmüş değerleri kullan
         zoneCenter[1], zoneCenter[0]
       );
+      
+      console.log(`[SAFE_ZONE_CHECK] Mesafe hesaplandı: ${distance}m, Konum: ${lat}, ${lng}, Merkez: ${zoneCenter[1]}, ${zoneCenter[0]}`);
 
       // Mesafe güvenli bölge yarıçapından küçükse içeride
       const isInside = distance <= zone.radius;
@@ -299,23 +311,52 @@ exports.checkLocation = async (req, res) => {
       
       // Son konuma göre giriş/çıkış durumunu kontrol et
       if (lastLocation) {
+        // Son konum verilerini sayıya dönüştür
+        const lastLat = parseFloat(lastLocation.latitude);
+        const lastLng = parseFloat(lastLocation.longitude);
+        
+        if (isNaN(lastLat) || isNaN(lastLng)) {
+          console.log(`[SAFE_ZONE_CHECK] Uyarı - Son konum geçersiz format: ${lastLocation.latitude}, ${lastLocation.longitude}`);
+          // Geçersiz son konum durumunda, ilk giriş/çıkış olayı gibi davran
+          if (isInside) {
+            console.log(`[SAFE_ZONE_CHECK] Geçersiz son konum, ilk giriş olayı oluşturuluyor`);
+            zone.entryEvents.push({
+              timestamp: new Date(),
+              coordinates: {
+                type: 'Point',
+                coordinates: [lng, lat]
+              },
+              note: 'Geçersiz son konum sonrası ilk giriş'
+            });
+            await zone.save();
+            continue; // Bu güvenli bölge için işlemi tamamla ve sonrakine geç
+          }
+          continue; // Geçersiz son konum ve dışarıdaysa, hiçbir şey yapma
+        }
+        
         const lastDistance = haversine(
-          lastLocation.latitude, lastLocation.longitude,
+          lastLat, lastLng,
           zoneCenter[1], zoneCenter[0]
         );
 
         const wasInside = lastDistance <= zone.radius;
+        console.log(`[SAFE_ZONE_CHECK] Son konum detayları - LastLat: ${lastLat}, LastLng: ${lastLng}, LastDistance: ${lastDistance}m`);
         console.log(`[SAFE_ZONE_CHECK] Son konum kontrolü - Son mesafe: ${lastDistance}m, Önceden içeride miydi: ${wasInside}`);
 
+        // Şu anki zaman
+        const now = new Date();
+        const ONE_DAY_MS = 24 * 60 * 60 * 1000; // 24 saat (milisaniye cinsinden)
+        
         // Son konum dışarıdaydı, şimdi içerideyse -> Giriş olayı
         if (!wasInside && isInside) {
           console.log(`[SAFE_ZONE_CHECK] GİRİŞ OLAYI OLUŞTURULUYOR - Bölge: ${zone.name}, Kullanıcı: ${phoneNumber}`);
           zone.entryEvents.push({
-            timestamp: new Date(),
+            timestamp: now,
             coordinates: {
               type: 'Point',
-              coordinates: [longitude, latitude]
-            }
+              coordinates: [lng, lat] // Dönüştürülmüş değerleri kullan
+            },
+            note: 'iOS emülatör testi: ' + new Date().toISOString()
           });
           await zone.save();
           console.log(`[SAFE_ZONE_CHECK] GİRİŞ OLAYI KAYDEDİLDİ - ${phoneNumber} kullanıcısı ${zone.name} güvenli alanına girdi. Yeni giriş olayları sayısı: ${zone.entryEvents.length}`);
@@ -324,16 +365,69 @@ exports.checkLocation = async (req, res) => {
         else if (wasInside && !isInside) {
           console.log(`[SAFE_ZONE_CHECK] ÇIKIŞ OLAYI OLUŞTURULUYOR - Bölge: ${zone.name}, Kullanıcı: ${phoneNumber}`);
           zone.exitEvents.push({
-            timestamp: new Date(),
+            timestamp: now,
             coordinates: {
               type: 'Point',
-              coordinates: [longitude, latitude]
-            }
+              coordinates: [lng, lat] // Dönüştürülmüş değerleri kullan
+            },
+            note: 'iOS emülatör testi: ' + new Date().toISOString()
           });
           await zone.save();
           console.log(`[SAFE_ZONE_CHECK] ÇIKIŞ OLAYI KAYDEDİLDİ - ${phoneNumber} kullanıcısı ${zone.name} güvenli alanından çıktı. Yeni çıkış olayları sayısı: ${zone.exitEvents.length}`);
-        } else {
+        } 
+        // Durum değişikliği yoksa, son olay zamanını kontrol et ve gerekirse yeni olay oluştur
+        else {
           console.log(`[SAFE_ZONE_CHECK] Durum değişikliği yok - ${wasInside ? 'İçeride kalmaya devam ediyor' : 'Dışarıda kalmaya devam ediyor'}`);
+          
+          try {
+            // İçerideyse ve son giriş olayından beri uzun süre geçtiyse yeni giriş olayı oluştur
+            if (isInside && zone.entryEvents.length > 0) {
+              const lastEntryEvent = zone.entryEvents[zone.entryEvents.length - 1];
+              const timeSinceLastEntry = now.getTime() - new Date(lastEntryEvent.timestamp).getTime();
+              
+              console.log(`[SAFE_ZONE_CHECK] Son giriş olayından bu yana geçen süre: ${Math.round(timeSinceLastEntry / (60 * 60 * 1000))} saat`);
+              
+              // Son giriş olayından beri 24 saatten fazla zaman geçtiyse yeni giriş olayı oluştur
+              if (timeSinceLastEntry > ONE_DAY_MS) {
+                console.log(`[SAFE_ZONE_CHECK] PERIYODIK GİRİŞ OLAYI OLUŞTURULUYOR - Son olaydan 24+ saat geçti. Bölge: ${zone.name}, Kullanıcı: ${phoneNumber}`);
+                zone.entryEvents.push({
+                  timestamp: now,
+                  coordinates: {
+                    type: 'Point',
+                    coordinates: [longitude, latitude]
+                  },
+                  note: 'Periyodik güncelleme - 24 saatten fazla içeride kaldı'
+                });
+                await zone.save();
+                console.log(`[SAFE_ZONE_CHECK] PERIYODIK GİRİŞ OLAYI KAYDEDİLDİ - ${phoneNumber} kullanıcısı ${zone.name} güvenli alanında 24+ saat kaldı. Yeni giriş olayları sayısı: ${zone.entryEvents.length}`);
+              }
+            }
+            // Dışarıdaysa ve son çıkış olayından beri uzun süre geçtiyse yeni çıkış olayı oluştur
+            else if (!isInside && zone.exitEvents.length > 0) {
+              const lastExitEvent = zone.exitEvents[zone.exitEvents.length - 1];
+              const timeSinceLastExit = now.getTime() - new Date(lastExitEvent.timestamp).getTime();
+              
+              console.log(`[SAFE_ZONE_CHECK] Son çıkış olayından bu yana geçen süre: ${Math.round(timeSinceLastExit / (60 * 60 * 1000))} saat`);
+              
+              // Son çıkış olayından beri 24 saatten fazla zaman geçtiyse yeni çıkış olayı oluştur
+              if (timeSinceLastExit > ONE_DAY_MS) {
+                console.log(`[SAFE_ZONE_CHECK] PERIYODIK ÇIKIŞ OLAYI OLUŞTURULUYOR - Son olaydan 24+ saat geçti. Bölge: ${zone.name}, Kullanıcı: ${phoneNumber}`);
+                zone.exitEvents.push({
+                  timestamp: now,
+                  coordinates: {
+                    type: 'Point',
+                    coordinates: [longitude, latitude]
+                  },
+                  note: 'Periyodik güncelleme - 24 saatten fazla dışarıda kaldı'
+                });
+                await zone.save();
+                console.log(`[SAFE_ZONE_CHECK] PERIYODIK ÇIKIŞ OLAYI KAYDEDİLDİ - ${phoneNumber} kullanıcısı ${zone.name} güvenli alanının dışında 24+ saat kaldı. Yeni çıkış olayları sayısı: ${zone.exitEvents.length}`);
+              }
+            }
+          } catch (eventError) {
+            console.error(`[SAFE_ZONE_CHECK] Periyodik olay oluşturma hatası:`, eventError);
+            // Hata olsa bile ana işlemi devam ettir, sadece logla
+          }
         }
       }
       // Son konum kaydı yoksa ve kullanıcı güvenli alanda ise
@@ -344,11 +438,27 @@ exports.checkLocation = async (req, res) => {
           timestamp: new Date(),
           coordinates: {
             type: 'Point',
-            coordinates: [longitude, latitude]
-          }
+            coordinates: [lng, lat] // Dönüştürülmüş değerleri kullan
+          },
+          note: 'İlk giriş kaydı - iOS emülatör testi: ' + new Date().toISOString()
         });
         await zone.save();
         console.log(`[SAFE_ZONE_CHECK] İLK GİRİŞ OLAYI KAYDEDİLDİ - Bölge: ${zone.name}, Kullanıcı: ${phoneNumber}, Yeni giriş olayları sayısı: ${zone.entryEvents.length}`);
+      }
+      // Son konum kaydı yoksa ve kullanıcı güvenli alanın dışındaysa
+      else {
+        console.log(`[SAFE_ZONE_CHECK] İLK ÇIKIŞ OLAYI OLUŞTURULUYOR - Son konum yok, şu an dışarıda. Bölge: ${zone.name}, Kullanıcı: ${phoneNumber}`);
+        // İlk çıkış olayını kaydet
+        zone.exitEvents.push({
+          timestamp: new Date(),
+          coordinates: {
+            type: 'Point',
+            coordinates: [lng, lat] // Dönüştürülmüş değerleri kullan
+          },
+          note: 'İlk çıkış kaydı - iOS emülatör testi: ' + new Date().toISOString()
+        });
+        await zone.save();
+        console.log(`[SAFE_ZONE_CHECK] İLK ÇIKIŞ OLAYI KAYDEDİLDİ - Bölge: ${zone.name}, Kullanıcı: ${phoneNumber}, Yeni çıkış olayları sayısı: ${zone.exitEvents.length}`);
       }
     }
     
@@ -357,7 +467,7 @@ exports.checkLocation = async (req, res) => {
       success: true,
       data: {
         phoneNumber,
-        coordinates: [longitude, latitude],
+        coordinates: [lng, lat], // Dönüştürülmüş değerleri kullan
         results,
         insideCount: insideZones.length,
         insideZones
