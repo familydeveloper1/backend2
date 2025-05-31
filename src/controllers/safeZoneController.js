@@ -99,7 +99,7 @@ exports.createSafeZone = async (req, res) => {
       userId,
       coordinates: {
         type: 'Point',
-        coordinates: [longitude, latitude]
+        coordinates: [lng, lat]
       },
       radius,
       category: category || 'Other',
@@ -170,7 +170,7 @@ exports.updateSafeZone = async (req, res) => {
     if (longitude && latitude) {
       safeZone.coordinates = {
         type: 'Point',
-        coordinates: [longitude, latitude]
+        coordinates: [lng, lat]
       };
     }
     if (radius) safeZone.radius = radius;
@@ -394,7 +394,7 @@ exports.checkLocation = async (req, res) => {
                   timestamp: now,
                   coordinates: {
                     type: 'Point',
-                    coordinates: [longitude, latitude]
+                    coordinates: [lng, lat]
                   },
                   note: 'Periyodik güncelleme - 24 saatten fazla içeride kaldı'
                 });
@@ -416,7 +416,7 @@ exports.checkLocation = async (req, res) => {
                   timestamp: now,
                   coordinates: {
                     type: 'Point',
-                    coordinates: [longitude, latitude]
+                    coordinates: [lng, lat]
                   },
                   note: 'Periyodik güncelleme - 24 saatten fazla dışarıda kaldı'
                 });
