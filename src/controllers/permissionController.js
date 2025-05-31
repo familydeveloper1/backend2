@@ -179,26 +179,27 @@ exports.respondToPermissionRequest = async (req, res, next) => {
         // Önce bu numaranın zaten eklenmiş olup olmadığını kontrol et
         const existingAllowedNumber = await AllowedNumber.findOne({
           user: req.user.id,
-          phoneNumber: permissionRequest.requesterPhone
+          phoneNumber: permissionRequest.targetPhoneNumber // Hedef numara kontrol edilmeli
         });
         
         console.log(`Mevcut izin kontrolü: ${existingAllowedNumber ? 'Numara zaten ekli' : 'Numara henüz eklenmemiş'}`);
+        console.log(`Kontrol edilen numara: ${permissionRequest.targetPhoneNumber} (hedef numara)`);
         
         // Eğer daha önce eklenmemişse, izin verilen numaralara ekle
         if (!existingAllowedNumber) {
           const newAllowedNumber = new AllowedNumber({
             user: req.user.id,
-            phoneNumber: permissionRequest.requesterPhone,
-            name: `İzin isteği ile eklendi - ${permissionRequest.requesterPhone}`,
-            notes: `${new Date().toISOString()} tarihinde izin isteği kabul edilerek eklendi.`
+            phoneNumber: permissionRequest.targetPhoneNumber, // Hedef numara eklenmelidir
+            name: `İzin isteği ile eklendi - ${permissionRequest.targetPhoneNumber}`,
+            notes: `${new Date().toISOString()} tarihinde ${permissionRequest.requesterPhone} tarafından yapılan izin isteği kabul edilerek eklendi.`
           });
           
           console.log(`Yeni izin verilen numara oluşturuldu:`, newAllowedNumber);
           
           await newAllowedNumber.save();
-          console.log(`İzin isteği kabul edildi ve ${permissionRequest.requesterPhone} numarası izin verilen numaralar listesine eklendi.`);
+          console.log(`İzin isteği kabul edildi ve ${permissionRequest.targetPhoneNumber} numarası izin verilen numaralar listesine eklendi.`);
         } else {
-          console.log(`${permissionRequest.requesterPhone} numarası zaten izin verilen numaralar listesinde bulunuyor.`);
+          console.log(`${permissionRequest.targetPhoneNumber} numarası zaten izin verilen numaralar listesinde bulunuyor.`);
         }
       } catch (allowedNumberError) {
         console.error('İzin verilen numara eklenirken hata oluştu:', allowedNumberError);
