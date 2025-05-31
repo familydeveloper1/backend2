@@ -27,4 +27,8 @@ const AllowedNumberSchema = new mongoose.Schema({
   timestamps: true
 });
 
-module.exports = mongoose.model('AllowedNumber', AllowedNumberSchema);
+// Model oluşturulmadan önce index ekle
+AllowedNumberSchema.index({ user: 1, phoneNumber: 1 }, { unique: true });
+
+// Veritabanında 'allowednumbers' koleksiyonunu kullan
+module.exports = mongoose.model('AllowedNumber', AllowedNumberSchema, 'allowednumbers');
