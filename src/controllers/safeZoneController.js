@@ -1,6 +1,22 @@
 const SafeZone = require('../models/SafeZone');
 const Location = require('../models/Location');
 
+// Haversine formülü ile iki nokta arasındaki mesafeyi hesaplama (metre cinsinden)
+function haversine(lat1, lon1, lat2, lon2) {
+  const R = 6371000; // metre cinsinden dünya yarıçapı
+  const toRad = (deg) => deg * Math.PI / 180;
+
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+
+  const a = Math.sin(dLat / 2) ** 2 +
+            Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
+            Math.sin(dLon / 2) ** 2;
+
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c; // metre cinsinden mesafe
+}
+
 // Tüm güvenli bölgeleri getir
 exports.getSafeZones = async (req, res) => {
   try {
@@ -252,9 +268,9 @@ exports.checkLocation = async (req, res) => {
     for (const zone of safeZones) {
       // Güvenli bölge merkezi ve şu anki konum arasındaki mesafeyi hesapla
       const zoneCenter = zone.coordinates.coordinates;
-      const distance = geolib.getDistance(
-        { latitude, longitude },
-        { latitude: zoneCenter[1], longitude: zoneCenter[0] }
+      const distance = haversine(
+        latitude, longitude,
+        zoneCenter[1], zoneCenter[0]
       );
 
       // Mesafe güvenli bölge yarıçapından küçükse içeride
@@ -283,9 +299,9 @@ exports.checkLocation = async (req, res) => {
       
       // Son konuma göre giriş/çıkış durumunu kontrol et
       if (lastLocation) {
-        const lastDistance = geolib.getDistance(
-          { latitude: lastLocation.latitude, longitude: lastLocation.longitude },
-          { latitude: zoneCenter[1], longitude: zoneCenter[0] }
+        const lastDistance = haversine(
+          lastLocation.latitude, lastLocation.longitude,
+          zoneCenter[1], zoneCenter[0]
         );
 
         const wasInside = lastDistance <= zone.radius;
