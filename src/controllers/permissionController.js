@@ -166,6 +166,33 @@ exports.respondToPermissionRequest = async (req, res, next) => {
     // İsteği güncelle
     permissionRequest.status = accept ? 'accepted' : 'rejected';
     await permissionRequest.save();
+    
+    // Eğer istek kabul edildiyse, numarayı izin verilen numaralar listesine ekle
+    if (accept) {
+      try {
+        // Önce bu numaranın zaten eklenmiş olup olmadığını kontrol et
+        const existingAllowedNumber = await AllowedNumber.findOne({
+          user: req.user.id,
+          phoneNumber: permissionRequest.requesterPhone
+        });
+        
+        // Eğer daha önce eklenmemişse, izin verilen numaralara ekle
+        if (!existingAllowedNumber) {
+          await AllowedNumber.create({
+            user: req.user.id,
+            phoneNumber: permissionRequest.requesterPhone,
+            name: `İzin isteği ile eklendi - ${permissionRequest.requesterPhone}`,
+            notes: `${new Date().toISOString()} tarihinde izin isteği kabul edilerek eklendi.`
+          });
+          console.log(`İzin isteği kabul edildi ve ${permissionRequest.requesterPhone} numarası izin verilen numaralar listesine eklendi.`);
+        } else {
+          console.log(`${permissionRequest.requesterPhone} numarası zaten izin verilen numaralar listesinde bulunuyor.`);
+        }
+      } catch (allowedNumberError) {
+        console.error('İzin verilen numara eklenirken hata oluştu:', allowedNumberError);
+        // Ana işlemi etkilememesi için hatayı sadece logluyoruz
+      }
+    }
 
     res.status(200).json({
       success: true,
