@@ -6,24 +6,7 @@ const connectDB = require('./config/db');
 const errorHandler = require('./middleware/error');
 // Auth middleware'ini import et
 
-// ErrorResponse sınıfını doğrudan tanımlayalım
-class ErrorResponse extends Error {
-  constructor(message, statusCode) {
-    super(message);
-    this.statusCode = statusCode;
-  }
-}
-
-// Alternatif olarak import etmeyi deneyelim
-try {
-  const importedErrorResponse = require('./utils/errorResponse');
-  // Import başarılıysa, ErrorResponse'u güncelleyelim
-  if (importedErrorResponse) {
-    ErrorResponse = importedErrorResponse;
-  }
-} catch (err) {
-  console.log('ErrorResponse modülü yüklenemedi, yerleşik sınıf kullanılacak:', err.message);
-}
+const ErrorResponse = require('./utils/errorResponse');
 
 // Models
 const Location = require('./models/Location');
@@ -34,6 +17,7 @@ const AllowedNumber = require('./models/AllowedNumber');
 const PermissionRequest = require('./models/PermissionRequest');
 const TrackedPhone = require('./models/TrackedPhone');
 const SafeZone = require('./models/SafeZone');
+const Activity = require('./models/Activity');
 
 // Middleware
 const { protect } = require('./middleware/auth');
@@ -1266,6 +1250,12 @@ app.get('/api/safe-zones/:id/events', auth, async (req, res) => {
   }
 });
 
+// Aktivite rotalarını yükle
+const activityRoutes = require('./routes/activityRoutes');
+
+// Aktivite API rotalarını kullan
+app.use('/api/activities', activityRoutes);
+
 // 404 - Route bulunamadı
 app.use((req, res, next) => {
   console.log(`404 - Route bulunamadı: ${req.originalUrl}`);
@@ -1288,6 +1278,7 @@ const server = app.listen(PORT, () => {
     console.log(`Ana sayfa: http://localhost:${PORT}`);
     console.log(`API test: http://localhost:${PORT}/api/test`);
     console.log(`Kullanıcı kaydı: http://localhost:${PORT}/api/users/register`);
+    console.log(`Aktivite API: http://localhost:${PORT}/api/activities`);
   } else {
     console.log('Uygulama production modunda çalışıyor');
   }
