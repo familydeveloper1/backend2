@@ -1,7 +1,25 @@
 const User = require('../models/User');
 const AllowedNumber = require('../models/AllowedNumber');
 const PermissionRequest = require('../models/PermissionRequest');
-const ErrorResponse = require('../utils/errorResponse');
+
+// ErrorResponse sınıfını doğrudan tanımlayalım
+class ErrorResponse extends Error {
+  constructor(message, statusCode) {
+    super(message);
+    this.statusCode = statusCode;
+  }
+}
+
+// Alternatif olarak import etmeyi deneyelim
+try {
+  const importedErrorResponse = require('../utils/errorResponse');
+  // Import başarılıysa, ErrorResponse'u güncelleyelim
+  if (importedErrorResponse) {
+    ErrorResponse = importedErrorResponse;
+  }
+} catch (err) {
+  console.log('ErrorResponse modülü yüklenemedi, yerleşik sınıf kullanılacak:', err.message);
+}
 
 // @desc    İzin verilen numaraları getir
 // @route   GET /api/permissions/allowed-numbers
