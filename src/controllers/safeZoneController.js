@@ -238,6 +238,13 @@ exports.checkLocation = async (req, res) => {
     const safeZones = await SafeZone.find({ phoneNumber, active: true });
     console.log(`[SAFE_ZONE_CHECK] ${phoneNumber} için ${safeZones.length} aktif güvenli bölge bulundu`);
     
+    // Kullanıcının son konumunu bul - bunu döngü dışına aldık
+    const lastLocation = await Location.findOne({ phoneNumber }).sort({ timestamp: -1 });
+    console.log(`[SAFE_ZONE_CHECK] ${phoneNumber} için son konum: ${lastLocation ? 'Bulundu' : 'Bulunamadı'}`);
+    if (lastLocation) {
+      console.log(`[SAFE_ZONE_CHECK] Son konum bilgileri - Lat: ${lastLocation.latitude}, Lng: ${lastLocation.longitude}, Zaman: ${lastLocation.timestamp}`);
+    }
+    
     // Her güvenli bölge için kontrol yap
     const results = [];
     const insideZones = [];
@@ -255,16 +262,27 @@ exports.checkLocation = async (req, res) => {
       console.log(`[SAFE_ZONE_CHECK] Bölge: ${zone.name}, Mesafe: ${distance}m, Yarıçap: ${zone.radius}m, İçeride mi: ${isInside}`);
       console.log(`[SAFE_ZONE_CHECK] Bölge ID: ${zone._id}, Giriş olayları: ${zone.entryEvents.length}, Çıkış olayları: ${zone.exitEvents.length}`);
       
-      // Kullanıcının son konumunu bul
-      const lastLocation = await Location.findOne({ phoneNumber }).sort({ timestamp: -1 });
-      console.log(`[SAFE_ZONE_CHECK] ${phoneNumber} için son konum: ${lastLocation ? 'Bulundu' : 'Bulunamadı'}`);
-      if (lastLocation) {
-        console.log(`[SAFE_ZONE_CHECK] Son konum bilgileri - Lat: ${lastLocation.latitude}, Lng: ${lastLocation.longitude}, Zaman: ${lastLocation.timestamp}`);
+      // Sonuçları doldur
+      const result = {
+        zoneId: zone._id,
+        zoneName: zone.name,
+        distance,
+        isInside
+      };
+      
+      results.push(result);
+      
+      // İçerideyse insideZones'a ekle
+      if (isInside) {
+        insideZones.push({
+          zoneId: zone._id,
+          zoneName: zone.name,
+          distance
+        });
       }
       
       // Son konuma göre giriş/çıkış durumunu kontrol et
       if (lastLocation) {
-        const lastCenter = lastLocation.coordinates.coordinates;
         const lastDistance = geolib.getDistance(
           { latitude: lastLocation.latitude, longitude: lastLocation.longitude },
           { latitude: zoneCenter[1], longitude: zoneCenter[0] }
