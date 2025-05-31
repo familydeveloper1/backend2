@@ -8,14 +8,17 @@ const ErrorResponse = require('../utils/errorResponse');
 // @access  Private
 exports.getAllowedNumbers = async (req, res, next) => {
   try {
+    console.log(`getAllowedNumbers çağrıldı. Kullanıcı ID: ${req.user.id}, Telefon: ${req.user.phoneNumber}`);
+    
     const allowedNumbers = await AllowedNumber.find({ user: req.user.id });
-
-    res.status(200).json({
-      success: true,
-      count: allowedNumbers.length,
-      data: allowedNumbers
-    });
+    
+    console.log(`İzin verilen numara sayısı: ${allowedNumbers.length}`);
+    console.log('Bulunan izin verilen numaralar:', JSON.stringify(allowedNumbers, null, 2));
+    
+    // Frontend'in daha kolay işleyebilmesi için doğrudan dizi döndür
+    res.status(200).json(allowedNumbers);
   } catch (err) {
+    console.error('İzin verilen numaraları getirirken hata:', err);
     next(err);
   }
 };
