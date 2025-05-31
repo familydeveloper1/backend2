@@ -8,15 +8,31 @@ const ErrorResponse = require('../utils/errorResponse');
 // @access  Private
 exports.getAllowedNumbers = async (req, res, next) => {
   try {
-    console.log(`getAllowedNumbers çağrıldı. Kullanıcı ID: ${req.user.id}, Telefon: ${req.user.phoneNumber}`);
+    console.log(`==== İZİN VERİLEN NUMARALARI GETİRME İŞLEMİ BAŞLADI ====`);
+    console.log(`Kullanıcı bilgileri: ID=${req.user.id}, Telefon=${req.user.phoneNumber}`);
     
+    // Koleksiyon adını kontrol et
+    console.log(`AllowedNumber model koleksiyon adı: ${AllowedNumber.collection.name}`);
+    
+    // Veritabanında bu kullanıcıya ait tüm izin verilen numaraları bul
+    console.log(`Kullanıcı ID=${req.user.id} için izin verilen numaralar aranıyor...`);
     const allowedNumbers = await AllowedNumber.find({ user: req.user.id });
     
     console.log(`İzin verilen numara sayısı: ${allowedNumbers.length}`);
-    console.log('Bulunan izin verilen numaralar:', JSON.stringify(allowedNumbers, null, 2));
+    if (allowedNumbers.length > 0) {
+      console.log('Bulunan izin verilen numaralar:', JSON.stringify(allowedNumbers, null, 2));
+    } else {
+      console.log('Bu kullanıcı için izin verilen numara bulunamadı.');
+    }
     
-    // Frontend'in daha kolay işleyebilmesi için doğrudan dizi döndür
-    res.status(200).json(allowedNumbers);
+    // Frontend'in beklediği formatta yanıt döndür
+    res.status(200).json({
+      success: true,
+      count: allowedNumbers.length,
+      data: allowedNumbers
+    });
+    
+    console.log(`==== İZİN VERİLEN NUMARALARI GETİRME İŞLEMİ TAMAMLANDI ====`);
   } catch (err) {
     console.error('İzin verilen numaraları getirirken hata:', err);
     next(err);
