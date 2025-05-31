@@ -254,6 +254,7 @@ exports.checkLocation = async (req, res) => {
         phoneNumber 
       }).sort({ timestamp: -1 });
       
+      // Son konum kaydı varsa
       if (lastLocation) {
         const wasInside = zone.isInside(
           lastLocation.coordinates.coordinates[0],
@@ -270,6 +271,7 @@ exports.checkLocation = async (req, res) => {
             }
           });
           await zone.save();
+          console.log(`Giriş olayı kaydedildi: ${zone.name}, ${phoneNumber}`);
         }
         
         // Çıkış olayı
@@ -282,7 +284,21 @@ exports.checkLocation = async (req, res) => {
             }
           });
           await zone.save();
+          console.log(`Çıkış olayı kaydedildi: ${zone.name}, ${phoneNumber}`);
         }
+      } 
+      // Son konum kaydı yoksa ve kullanıcı güvenli alanda ise
+      else if (isInside) {
+        // İlk giriş olayını kaydet
+        zone.entryEvents.push({
+          timestamp: new Date(),
+          coordinates: {
+            type: 'Point',
+            coordinates: [longitude, latitude]
+          }
+        });
+        await zone.save();
+        console.log(`İlk giriş olayı kaydedildi: ${zone.name}, ${phoneNumber}`);
       }
     }
     
