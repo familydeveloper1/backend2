@@ -6,6 +6,25 @@ const connectDB = require('./config/db');
 const errorHandler = require('./middleware/error');
 // Auth middleware'ini import et
 
+// ErrorResponse sınıfını doğrudan tanımlayalım
+class ErrorResponse extends Error {
+  constructor(message, statusCode) {
+    super(message);
+    this.statusCode = statusCode;
+  }
+}
+
+// Alternatif olarak import etmeyi deneyelim
+try {
+  const importedErrorResponse = require('./utils/errorResponse');
+  // Import başarılıysa, ErrorResponse'u güncelleyelim
+  if (importedErrorResponse) {
+    ErrorResponse = importedErrorResponse;
+  }
+} catch (err) {
+  console.log('ErrorResponse modülü yüklenemedi, yerleşik sınıf kullanılacak:', err.message);
+}
+
 // Models
 const Location = require('./models/Location');
 const User = require('./models/User');
