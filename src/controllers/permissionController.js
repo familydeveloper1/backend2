@@ -257,7 +257,9 @@ exports.respondToPermissionRequest = async (req, res, next) => {
       } catch (allowedNumberError) {
         console.error('==== İZİN VERİLEN NUMARA EKLEME HATASI ====');
         console.error('İzin verilen numara eklenirken hata oluştu:', allowedNumberError);
-        // Ana işlemi etkilememesi için hatayı sadece logluyoruz
+        // Hatanın frontend'e bildirilmesi için next ile middleware'e gönderiyoruz.
+        // Bu, işlemin geri kalanının (başarılı yanıt gönderme) çalışmasını engelleyecektir.
+        return next(new ErrorResponse(`İzin verilen numara veritabanına kaydedilirken bir sorun oluştu: ${allowedNumberError.message}`, 500));
       }
     }
 
