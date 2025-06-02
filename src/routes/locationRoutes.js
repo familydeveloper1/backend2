@@ -7,30 +7,55 @@ const User = require('../models/User');
 // Telefon numarasına göre konum kaydetme
 router.post('/phone', auth, async (req, res, next) => {
   try {
-    const { phoneNumber, latitude, longitude, altitude, speed, accuracy } = req.body;
-
-    // Telefon numarasını kontrol et
-    const user = await User.findOne({ phoneNumber });
-
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        error: `${phoneNumber} numaralı kullanıcı bulunamadı`
-      });
+    const { phoneNumber, latitude, longitude, altitude, speed, accuracy, timestamp, limit = 20 } = req.body;
+    
+    if (!phoneNumber) {
+      return res.status(400).json({ success: false, error: 'Telefon numarası gerekli' });
+    }
+    
+    let user = null;
+    let userId = null;
+    
+    // Eğer anonim kullanıcı değilse kullanıcıyı bul
+    if (phoneNumber !== 'anonymous') {
+      user = await User.findOne({ phoneNumber });
+      
+      if (!user) {
+        return res.status(404).json({ success: false, error: 'Bu telefon numarasına sahip kullanıcı bulunamadı' });
+      }
+      
+      userId = user._id;
     }
 
     // Konum oluştur
     const location = await Location.create({
       phoneNumber,
-      user: user._id,
+      user: userId, // Anonim kullanıcı için null olacak
       coordinates: {
         type: 'Point',
         coordinates: [longitude, latitude]
       },
       altitude,
       speed,
-      accuracy
+      accuracy,
+      timestamp: timestamp || Date.now()
     });
+    
+    // Limit kontrolü - telefon numarası başına en fazla 'limit' kadar kayıt tutulacak
+    const count = await Location.countDocuments({ phoneNumber });
+    
+    // Eğer limit aşıldıysa en eski kayıtları sil
+    if (count > limit) {
+      const oldestLocations = await Location.find({ phoneNumber })
+        .sort({ timestamp: 1 })
+        .limit(count - limit);
+      
+      if (oldestLocations.length > 0) {
+        await Location.deleteMany({ 
+          _id: { $in: oldestLocations.map(loc => loc._id) }
+        });
+      }
+    }
 
     res.status(201).json({
       success: true,
