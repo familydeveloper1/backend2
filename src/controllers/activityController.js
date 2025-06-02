@@ -373,8 +373,6 @@ const getActivitySummary = async (req, res) => {
     const { userId, phoneNumber } = req.params;
     const { period } = req.query; // 'day', 'week', 'month', 'year'
 
-    console.log(`Aktivite özeti getiriliyor - UserId: ${userId}, PhoneNumber: ${phoneNumber}, Period: ${period}`);
-
     const query = {
       userId,
       isActive: false
@@ -410,11 +408,9 @@ const getActivitySummary = async (req, res) => {
     }
 
     query.startTime = { $gte: startDate, $lte: now };
-    console.log('Sorgu kriterleri:', JSON.stringify(query));
 
     // Aktivite türlerine göre istatistikleri hesapla
     const activities = await Activity.find(query);
-    console.log(`Bulunan aktivite sayısı: ${activities.length}`);
 
     // Özet istatistikleri hesapla
     const summary = {
@@ -446,11 +442,8 @@ const getActivitySummary = async (req, res) => {
       summary.byType[activity.type].calories += activity.calories || 0;
     });
 
-    console.log('Oluşturulan özet:', JSON.stringify(summary));
-
     res.status(200).json({
       success: true,
-      count: activities.length,
       period,
       startDate,
       endDate: now,
