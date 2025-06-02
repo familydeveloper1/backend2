@@ -125,12 +125,15 @@ router.get('/phone/:phoneNumber', auth, async (req, res, next) => {
   try {
     const { phoneNumber } = req.params;
     
-    // İzin kontrolü - kullanıcı kendisi mi veya admin mi?
-    if (req.user.phoneNumber !== phoneNumber && req.user.role !== 'admin') {
-      return res.status(403).json({
-        success: false,
-        error: 'Bu telefon numarasının konumlarına erişim yetkiniz yok'
-      });
+    // Anonim kullanıcı kontrolü - anonim kullanıcılar için izin kontrolü yok
+    if (phoneNumber !== 'anonymous') {
+      // İzin kontrolü - kullanıcı kendisi mi veya admin mi?
+      if (req.user.phoneNumber !== phoneNumber && req.user.role !== 'admin') {
+        return res.status(403).json({
+          success: false,
+          error: 'Bu telefon numarasının konumlarına erişim yetkiniz yok'
+        });
+      }
     }
 
     // Sorgu parametrelerini al
