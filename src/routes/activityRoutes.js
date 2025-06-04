@@ -117,4 +117,43 @@ router.get('/summary/user/:userId/phone/:phoneNumber', [
   param('phoneNumber').notEmpty().withMessage('Telefon numarası gerekli')
 ], activityController.getActivitySummary);
 
+/**
+ * @route DELETE /api/activities/user/:userId
+ * @desc Kullanıcıya ait tüm aktiviteleri siler
+ * @access Private
+ */
+router.delete('/user/:userId', [
+  param('userId').notEmpty().withMessage('Kullanıcı ID gerekli')
+], async (req, res) => {
+  try {
+    const { userId } = req.params;
+    
+    // Yetki kontrolü - kullanıcı kendisi mi veya admin mi?
+    if (req.user.id !== userId && req.user.role !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        error: 'Bu kullanıcının aktivitelerini silme yetkiniz yok'
+      });
+    }
+    
+    // Aktivite modelini import et
+    const Activity = require('../models/Activity');
+    
+    // Kullanıcıya ait tüm aktiviteleri sil
+    const result = await Activity.deleteMany({ user: userId });
+    
+    res.status(200).json({
+      success: true,
+      message: `${result.deletedCount} aktivite başarıyla silindi`,
+      deletedCount: result.deletedCount
+    });
+  } catch (err) {
+    console.error('Aktiviteler silinirken hata:', err);
+    res.status(500).json({
+      success: false,
+      error: 'Sunucu hatası'
+    });
+  }
+});
+
 module.exports = router;

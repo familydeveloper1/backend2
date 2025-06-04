@@ -219,4 +219,34 @@ router.get('/nearby', auth, async (req, res, next) => {
   }
 });
 
+// Telefon numarasına göre konum verilerini sil
+router.delete('/phone/:phoneNumber', auth, async (req, res, next) => {
+  try {
+    const { phoneNumber } = req.params;
+    
+    // İzin kontrolü - kullanıcı kendisi mi veya admin mi?
+    if (req.user.phoneNumber !== phoneNumber && req.user.role !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        error: 'Bu telefon numarasının konumlarını silme yetkiniz yok'
+      });
+    }
+
+    // Telefon numarasına ait tüm konumları sil
+    const result = await Location.deleteMany({ phoneNumber });
+
+    res.status(200).json({
+      success: true,
+      message: `${result.deletedCount} konum kaydı başarıyla silindi`,
+      deletedCount: result.deletedCount
+    });
+  } catch (err) {
+    console.error('Konum verileri silinirken hata:', err);
+    res.status(500).json({
+      success: false,
+      error: 'Sunucu hatası'
+    });
+  }
+});
+
 module.exports = router;

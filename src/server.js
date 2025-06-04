@@ -514,6 +514,7 @@ app.post('/api/locations/phone', auth, async (req, res) => {
     console.log('Kaydedilecek konum verileri:', locationData);
 
     // Aynı telefon numarası için mevcut konum kaydını ara ve güncelle, yoksa yeni oluştur
+    // Böylece her telefon numarası için sadece bir kayıt olacak ve bu güncellenecek
     const location = await Location.findOneAndUpdate(
       { phoneNumber },
       locationData,
