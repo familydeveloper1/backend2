@@ -28,8 +28,8 @@ router.post('/phone', auth, async (req, res, next) => {
       userId = user._id;
     }
 
-    // Konum oluştur
-    const location = await Location.create({
+    // Mevcut konumu kontrol et ve güncelle, yoksa oluştur
+    const locationData = {
       phoneNumber,
       user: userId, // Anonim kullanıcı için null olacak
       coordinates: {
@@ -39,24 +39,22 @@ router.post('/phone', auth, async (req, res, next) => {
       altitude,
       speed,
       accuracy,
-      timestamp: timestamp || Date.now()
-    });
+      timestamp: timestamp || Date.now(),
+      updatedAt: Date.now()
+    };
     
-    // Limit kontrolü - telefon numarası başına en fazla 'limit' kadar kayıt tutulacak
-    const count = await Location.countDocuments({ phoneNumber });
-    
-    // Eğer limit aşıldıysa en eski kayıtları sil
-    if (count > limit) {
-      const oldestLocations = await Location.find({ phoneNumber })
-        .sort({ timestamp: 1 })
-        .limit(count - limit);
-      
-      if (oldestLocations.length > 0) {
-        await Location.deleteMany({ 
-          _id: { $in: oldestLocations.map(loc => loc._id) }
-        });
+    // findOneAndUpdate ile mevcut kaydı güncelle, yoksa yeni kayıt oluştur
+    const location = await Location.findOneAndUpdate(
+      { phoneNumber }, // Arama kriteri
+      locationData,    // Güncellenecek veriler
+      { 
+        new: true,     // Güncellenmiş veriyi döndür
+        upsert: true,  // Kayıt yoksa oluştur
+        setDefaultsOnInsert: true // Yeni kayıt oluşturulurken varsayılan değerleri ayarla
       }
-    }
+    );
+    
+    // Limit kontrolüne gerek kalmadı, çünkü her telefon numarası için tek kayıt tutuyoruz
 
     res.status(201).json({
       success: true,

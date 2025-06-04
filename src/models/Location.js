@@ -5,7 +5,8 @@ const LocationSchema = new mongoose.Schema({
   phoneNumber: {
     type: String,
     required: false, // Geriye dönük uyumluluk için false
-    index: true // Telefon numarasına göre hızlı arama için indeks
+    index: true, // Telefon numarasına göre hızlı arama için indeks
+    unique: true // Her telefon numarası için tek kayıt olmasını sağlar
   },
   // Kullanıcı referansı
   user: {
@@ -46,6 +47,11 @@ const LocationSchema = new mongoose.Schema({
   timestamp: {
     type: Date,
     default: Date.now
+  },
+  // Son güncelleme zamanı
+  updatedAt: {
+    type: Date,
+    default: Date.now
   }
 });
 
@@ -68,6 +74,33 @@ LocationSchema.pre('save', async function(next) {
     } catch (err) {
       console.error('Kullanıcının son konumu güncellenirken hata oluştu:', err);
     }
+  }
+  
+  next();
+});
+
+// findOneAndUpdate için hook - kullanıcının son konumunu güncelle
+LocationSchema.pre('findOneAndUpdate', async function(next) {
+  try {
+    const update = this.getUpdate();
+    const phoneNumber = update.phoneNumber;
+    
+    if (phoneNumber && update.coordinates) {
+      const User = mongoose.model('User');
+      const user = await User.findOne({ phoneNumber });
+      
+      if (user) {
+        user.lastKnownLocation = {
+          latitude: update.coordinates.coordinates[1],
+          longitude: update.coordinates.coordinates[0],
+          timestamp: update.timestamp || Date.now()
+        };
+        await user.save();
+        console.log(`${phoneNumber} için kullanıcı son konumu güncellendi`);
+      }
+    }
+  } catch (err) {
+    console.error('findOneAndUpdate sırasında kullanıcı son konumu güncellenirken hata:', err);
   }
   
   next();
