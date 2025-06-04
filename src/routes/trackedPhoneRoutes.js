@@ -18,4 +18,7 @@ router.delete('/:id', trackedPhoneController.removeTrackedPhone);
 // Takip edilen telefon numarasının detaylarını getir
 router.get('/:id', trackedPhoneController.getTrackedPhoneDetails);
 
+// Telefon numarasına göre takip edilen telefonları sil
+router.delete('/phone/:phoneNumber', trackedPhoneController.deleteByPhoneNumber);
+
 module.exports = router;

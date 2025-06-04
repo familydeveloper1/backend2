@@ -173,3 +173,52 @@ exports.getTrackedPhoneDetails = async (req, res) => {
     });
   }
 };
+
+// Telefon numarasına göre takip edilen telefonları sil
+exports.deleteByPhoneNumber = async (req, res) => {
+  try {
+    const { phoneNumber } = req.params;
+    
+    // Yetki kontrolü - kullanıcı kendisi mi veya admin mi?
+    if (req.user.phoneNumber !== phoneNumber && req.user.role !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Bu telefon numarasına ait takip kayıtlarını silme yetkiniz yok'
+      });
+    }
+    
+    // İki durumu da ele alalım:
+    // 1. Bu telefon numarasının takip ettiği telefonlar
+    // 2. Bu telefon numarasını takip eden kayıtlar
+    
+    // Önce kullanıcıyı bulalım
+    const user = await User.findOne({ phoneNumber });
+    
+    let deletedCount = 0;
+    
+    if (user) {
+      // 1. Bu kullanıcının takip ettiği telefonları sil
+      const result1 = await TrackedPhone.deleteMany({ userId: user._id });
+      deletedCount += result1.deletedCount;
+      console.log(`${phoneNumber} kullanıcısının takip ettiği ${result1.deletedCount} telefon silindi`);
+    }
+    
+    // 2. Bu telefon numarasını takip eden kayıtları sil
+    const result2 = await TrackedPhone.deleteMany({ phoneNumber });
+    deletedCount += result2.deletedCount;
+    console.log(`${phoneNumber} numarasını takip eden ${result2.deletedCount} kayıt silindi`);
+    
+    return res.status(200).json({
+      success: true,
+      message: `Toplam ${deletedCount} takip kaydı başarıyla silindi`,
+      deletedCount
+    });
+  } catch (error) {
+    console.error('deleteByPhoneNumber error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Takip kayıtları silinirken bir hata oluştu',
+      error: error.message
+    });
+  }
+};
