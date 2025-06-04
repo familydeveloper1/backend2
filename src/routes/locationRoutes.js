@@ -74,35 +74,28 @@ router.get('/phone/:phoneNumber/latest', auth, async (req, res, next) => {
   try {
     const { phoneNumber } = req.params;
     
-    // Telefon numarasının sahibini kontrol et
-    const targetUser = await User.findOne({ phoneNumber });
-
-    if (!targetUser) {
-      return res.status(404).json({
-        success: false,
-        error: `${phoneNumber} numaralı kullanıcı bulunamadı`
-      });
-    }
-
-    // İzin kontrolü - kullanıcı kendisi mi veya admin mi?
-    if (req.user.phoneNumber !== phoneNumber && req.user.role !== 'admin') {
-      // Kullanıcı kendisi veya admin değilse, izin isteklerini kontrol et
-      const PermissionRequest = require('../models/PermissionRequest');
-      const permissionRequest = await PermissionRequest.findOne({
-        targetPhoneNumber: phoneNumber,
-        requesterPhone: req.user.phoneNumber,
-        status: 'accepted'
-      });
-
-      if (!permissionRequest) {
-        console.log(`${req.user.phoneNumber} kullanıcısının ${phoneNumber} numarasının konumuna erişim izni yok`);
-        return res.status(403).json({
-          success: false,
-          error: 'Bu telefon numarasının konumuna erişim yetkiniz yok'
+    // Anonim kullanıcı kontrolü - anonim kullanıcılar için izin kontrolü yok
+    if (phoneNumber !== 'anonymous') {
+      // İzin kontrolü - kullanıcı kendisi mi veya admin mi?
+      if (req.user.phoneNumber !== phoneNumber && req.user.role !== 'admin') {
+        // Kullanıcı kendisi veya admin değilse, izin isteklerini kontrol et
+        const PermissionRequest = require('../models/PermissionRequest');
+        const permissionRequest = await PermissionRequest.findOne({
+          targetPhoneNumber: phoneNumber,
+          requesterPhone: req.user.phoneNumber,
+          status: 'accepted'
         });
+
+        if (!permissionRequest) {
+          console.log(`${req.user.phoneNumber} kullanıcısının ${phoneNumber} numarasının konumuna erişim izni yok`);
+          return res.status(403).json({
+            success: false,
+            error: 'Bu telefon numarasının konumuna erişim yetkiniz yok'
+          });
+        }
+        
+        console.log(`${req.user.phoneNumber} kullanıcısının ${phoneNumber} numarasının konumuna erişim izni var`);
       }
-      
-      console.log(`${req.user.phoneNumber} kullanıcısının ${phoneNumber} numarasının konumuna erişim izni var`);
     }
 
     // Son konumu Location koleksiyonundan al (artık her telefon için tek kayıt var)
