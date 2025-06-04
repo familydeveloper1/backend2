@@ -140,10 +140,23 @@ router.get('/phone/:phoneNumber', auth, async (req, res, next) => {
     if (phoneNumber !== 'anonymous') {
       // İzin kontrolü - kullanıcı kendisi mi veya admin mi?
       if (req.user.phoneNumber !== phoneNumber && req.user.role !== 'admin') {
-        return res.status(403).json({
-          success: false,
-          error: 'Bu telefon numarasının konumlarına erişim yetkiniz yok'
+        // Kullanıcı kendisi veya admin değilse, izin isteklerini kontrol et
+        const PermissionRequest = require('../models/PermissionRequest');
+        const permissionRequest = await PermissionRequest.findOne({
+          targetPhoneNumber: phoneNumber,
+          requesterPhone: req.user.phoneNumber,
+          status: 'accepted'
         });
+
+        if (!permissionRequest) {
+          console.log(`${req.user.phoneNumber} kullanıcısının ${phoneNumber} numarasının konum geçmişine erişim izni yok`);
+          return res.status(403).json({
+            success: false,
+            error: 'Bu telefon numarasının konumlarına erişim yetkiniz yok'
+          });
+        }
+        
+        console.log(`${req.user.phoneNumber} kullanıcısının ${phoneNumber} numarasının konum geçmişine erişim izni var`);
       }
     }
 
