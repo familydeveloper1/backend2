@@ -156,4 +156,43 @@ router.delete('/user/:userId', [
   }
 });
 
+/**
+ * @route DELETE /api/activities/phone/:phoneNumber
+ * @desc Telefon numarasına ait tüm aktiviteleri siler
+ * @access Private
+ */
+router.delete('/phone/:phoneNumber', [
+  param('phoneNumber').notEmpty().withMessage('Telefon numarası gerekli')
+], async (req, res) => {
+  try {
+    const { phoneNumber } = req.params;
+    
+    // Yetki kontrolü - kullanıcı kendisi mi veya admin mi?
+    if (req.user.phoneNumber !== phoneNumber && req.user.role !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        error: 'Bu telefon numarasının aktivitelerini silme yetkiniz yok'
+      });
+    }
+    
+    // Aktivite modelini import et
+    const Activity = require('../models/Activity');
+    
+    // Telefon numarasına ait tüm aktiviteleri sil
+    const result = await Activity.deleteMany({ phoneNumber: phoneNumber });
+    
+    res.status(200).json({
+      success: true,
+      message: `${result.deletedCount} aktivite başarıyla silindi`,
+      deletedCount: result.deletedCount
+    });
+  } catch (err) {
+    console.error('Aktiviteler silinirken hata:', err);
+    res.status(500).json({
+      success: false,
+      error: 'Sunucu hatası'
+    });
+  }
+});
+
 module.exports = router;
