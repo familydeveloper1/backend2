@@ -86,14 +86,29 @@ router.get('/phone/:phoneNumber/latest', auth, async (req, res, next) => {
 
     // İzin kontrolü - kullanıcı kendisi mi veya admin mi?
     if (req.user.phoneNumber !== phoneNumber && req.user.role !== 'admin') {
-      return res.status(403).json({
-        success: false,
-        error: 'Bu telefon numarasının konumuna erişim yetkiniz yok'
+      // Kullanıcı kendisi veya admin değilse, izin isteklerini kontrol et
+      const PermissionRequest = require('../models/PermissionRequest');
+      const permissionRequest = await PermissionRequest.findOne({
+        targetPhoneNumber: phoneNumber,
+        requesterPhone: req.user.phoneNumber,
+        status: 'accepted'
       });
+
+      if (!permissionRequest) {
+        console.log(`${req.user.phoneNumber} kullanıcısının ${phoneNumber} numarasının konumuna erişim izni yok`);
+        return res.status(403).json({
+          success: false,
+          error: 'Bu telefon numarasının konumuna erişim yetkiniz yok'
+        });
+      }
+      
+      console.log(`${req.user.phoneNumber} kullanıcısının ${phoneNumber} numarasının konumuna erişim izni var`);
     }
 
-    // Son konumu kullanıcı modelinden al
-    if (!targetUser.lastKnownLocation) {
+    // Son konumu Location koleksiyonundan al (artık her telefon için tek kayıt var)
+    const lastLocation = await Location.findOne({ phoneNumber });
+
+    if (!lastLocation || !lastLocation.coordinates) {
       return res.status(404).json({
         success: false,
         error: 'Bu telefon numarası için konum bilgisi bulunamadı'
@@ -103,11 +118,8 @@ router.get('/phone/:phoneNumber/latest', auth, async (req, res, next) => {
     res.status(200).json({
       success: true,
       data: {
-        coordinates: {
-          type: 'Point',
-          coordinates: [targetUser.lastKnownLocation.longitude, targetUser.lastKnownLocation.latitude]
-        },
-        timestamp: targetUser.lastKnownLocation.timestamp
+        coordinates: lastLocation.coordinates,
+        timestamp: lastLocation.timestamp
       }
     });
   } catch (err) {
