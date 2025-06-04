@@ -11,6 +11,7 @@ const ErrorResponse = require('./utils/errorResponse');
 // Route dosyalarını import et
 const userRoutes = require('./routes/userRoutes');
 const locationRoutes = require('./routes/locationRoutes');
+const permissionRoutes = require('./routes/permissionRoutes');
 
 // Models
 const Location = require('./models/Location');
@@ -56,6 +57,7 @@ app.use((req, res, next) => {
 // Route'ları kullan
 app.use('/api/users', userRoutes);
 app.use('/api/locations', locationRoutes);
+app.use('/api/permissions', permissionRoutes);
 
 // KULLANICI ROTALARI
 
