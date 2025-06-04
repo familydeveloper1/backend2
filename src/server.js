@@ -8,6 +8,9 @@ const errorHandler = require('./middleware/error');
 
 const ErrorResponse = require('./utils/errorResponse');
 
+// Route dosyalarını import et
+const userRoutes = require('./routes/userRoutes');
+
 // Models
 const Location = require('./models/Location');
 const User = require('./models/User');
@@ -48,6 +51,9 @@ app.use((req, res, next) => {
   console.log(`${req.method} ${req.originalUrl}`);
   next();
 });
+
+// Route'ları kullan
+app.use('/api/users', userRoutes);
 
 // KULLANICI ROTALARI
 
